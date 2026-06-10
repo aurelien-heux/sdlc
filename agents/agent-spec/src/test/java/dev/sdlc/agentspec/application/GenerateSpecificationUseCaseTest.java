@@ -88,4 +88,45 @@ class GenerateSpecificationUseCaseTest {
                 .hasMessageContaining("APPROVED");
         assertThat(model.requests).isEmpty(); // never called the model
     }
+
+    @Test
+    void writtenFileRoundTripsThroughFrontmatterParserEvenWithHostileTitle() {
+        graph.upsert(approvedReq());
+        String hostileJson = """
+                {"title": "Checkout: apply [regional] tax # phase 0",
+                 "criteria": [{"scenario": "FR VAT", "steps": "Given a FR cart\\nWhen checkout\\nThen VAT added"}],
+                 "constraints": [], "assumptions": ["uses \\"latest\\" rates"], "untestable": []}
+                """;
+        var model = new FakeLanguageModel().respondWith(FakeLanguageModel.finalText(hostileJson));
+
+        var specId = useCase(model).generate(List.of(ArtifactId.of("REQ-0012")));
+
+        var content = files.get(graph.get(specId).orElseThrow().repoPath());
+        var reparsed = new FrontmatterParser().parse(content, "specs/" + specId.value() + ".md");
+        assertThat(reparsed.node().title()).isEqualTo("Checkout: apply [regional] tax # phase 0");
+        assertThat(reparsed.node().status()).isEqualTo(NodeStatus.PROPOSED);
+        assertThat(reparsed.node().provenance().assumptions())
+                .containsExactly("uses \"latest\" rates");
+        assertThat(reparsed.edgeTargets().get(EdgeType.DERIVES_FROM))
+                .containsExactly(ArtifactId.of("REQ-0012"));
+    }
+
+    @Test
+    void untestableFlagsAreSurfacedInTheWrittenFile() {
+        graph.upsert(approvedReq());
+        String flaggedJson = """
+                {"title": "Checkout tax",
+                 "criteria": [{"scenario": "FR VAT", "steps": "Given a FR cart\\nWhen checkout\\nThen VAT added"}],
+                 "constraints": [], "assumptions": ["x"],
+                 "untestable": [{"id": "REQ-0012", "reason": "no measurable acceptance threshold"}]}
+                """;
+        var model = new FakeLanguageModel().respondWith(FakeLanguageModel.finalText(flaggedJson));
+
+        var specId = useCase(model).generate(List.of(ArtifactId.of("REQ-0012")));
+
+        var content = files.get(graph.get(specId).orElseThrow().repoPath());
+        assertThat(content).contains("## Testability flags")
+                .contains("REQ-0012")
+                .contains("no measurable acceptance threshold");
+    }
 }

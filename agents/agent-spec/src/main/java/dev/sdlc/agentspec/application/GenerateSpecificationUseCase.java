@@ -2,6 +2,7 @@ package dev.sdlc.agentspec.application;
 
 import dev.sdlc.agent.AgentLoop;
 import dev.sdlc.agentspec.domain.SpecificationDraft;
+import dev.sdlc.agentspec.domain.TestabilityReport;
 import dev.sdlc.domain.*;
 import dev.sdlc.domain.event.ArtifactProposed;
 import dev.sdlc.agent.port.ArtifactRepositoryPort;
@@ -10,7 +11,6 @@ import dev.sdlc.trace.*;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -63,7 +63,7 @@ public final class GenerateSpecificationUseCase {
                 agentVersion, 0.8, parsed.assumptions());
 
         String repoPath = "specs/" + specId.value() + ".md";
-        String content = renderFile(draft, provenance);
+        String content = renderFile(draft, provenance, parsed.report());
         String blobSha = repo.write(repoPath, content);
 
         var now = Instant.now();
@@ -86,13 +86,22 @@ public final class GenerateSpecificationUseCase {
         throw new IllegalStateException("SPEC id space exhausted");
     }
 
-    private String renderFile(SpecificationDraft draft, Provenance prov) {
+    /** YAML single-quoted scalar: the only escape is '' ; newlines are flattened. */
+    private static String yq(String s) {
+        return "'" + s.replaceAll("[\\r\\n]+", " ").replace("'", "''") + "'";
+    }
+
+    private String renderFile(SpecificationDraft draft, Provenance prov, TestabilityReport report) {
         String derives = draft.derivesFrom().stream().map(ArtifactId::value)
                 .collect(Collectors.joining(", ", "[", "]"));
-        String refs = prov.sourceRefs().stream().collect(Collectors.joining(", ", "[", "]"));
-        String assumptions = prov.assumptions().stream()
-                .map(a -> "\"" + a + "\"").collect(Collectors.joining(", ", "[", "]"));
-        return String.format(Locale.ROOT, """
+        String refs = prov.sourceRefs().stream().map(GenerateSpecificationUseCase::yq)
+                .collect(Collectors.joining(", ", "[", "]"));
+        String assumptions = prov.assumptions().stream().map(GenerateSpecificationUseCase::yq)
+                .collect(Collectors.joining(", ", "[", "]"));
+        String flags = report.clean() ? "" : "\n## Testability flags\n\n" + report.flags().stream()
+                .map(f -> "- " + f.requirement().value() + ": " + f.reason())
+                .collect(Collectors.joining("\n")) + "\n";
+        return String.format(java.util.Locale.ROOT, """
                 ---
                 id: %s
                 type: Specification
@@ -106,8 +115,7 @@ public final class GenerateSpecificationUseCase {
                   assumptions: %s
                   humanApproved: false
                 ---
-                %s""",
-                draft.id().value(), draft.title(), derives, refs,
-                prov.generatedBy(), prov.confidence(), assumptions, draft.renderBody());
+                %s%s""", draft.id().value(), yq(draft.title()), derives, refs,
+                yq(prov.generatedBy()), prov.confidence(), assumptions, draft.renderBody(), flags);
     }
 }
