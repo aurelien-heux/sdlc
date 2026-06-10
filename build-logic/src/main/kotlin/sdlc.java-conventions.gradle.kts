@@ -13,4 +13,4 @@ dependencies {
     testRuntimeOnly(libs.findLibrary("junit-launcher").get())
 }
 
-tasks.withType<Test> { useJUnitPlatform() }
+tasks.withType<Test>().configureEach { useJUnitPlatform() }

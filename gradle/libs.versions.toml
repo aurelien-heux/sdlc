@@ -14,3 +14,6 @@ junit-launcher = { module = "org.junit.platform:junit-platform-launcher" }
 assertj = { module = "org.assertj:assertj-core", version.ref = "assertj" }
 archunit = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
 snakeyaml = { module = "org.yaml:snakeyaml", version.ref = "snakeyaml" }
+
+[plugins]
+spring-boot = { id = "org.springframework.boot", version.ref = "springBoot" }

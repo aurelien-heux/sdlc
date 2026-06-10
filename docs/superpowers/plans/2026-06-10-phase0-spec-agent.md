@@ -2415,11 +2415,13 @@ In `agents/agent-spec/build.gradle.kts`:
 ```kotlin
 plugins {
     id("sdlc.java-conventions")
-    id("org.springframework.boot") version "4.0.6"
+    alias(libs.plugins.spring.boot)   // version comes from the catalog (springBoot)
 }
 repositories {
     mavenCentral()
-    maven("https://repo.spring.io/milestone") // Spring AI 2.0 milestones; drop once 2.0 GA is out
+    maven("https://repo.spring.io/milestone") { // Spring AI 2.0 milestones; drop once 2.0 GA is out
+        content { includeGroupByRegex("org\\.springframework\\.ai.*") }
+    }
 }
 dependencies {
     // existing deps unchanged
@@ -2427,7 +2429,7 @@ dependencies {
     implementation(libs.spring.ai.anthropic)
 }
 ```
-(Add `id("org.springframework.boot") version "4.0.6" apply false` style management to build-logic later if more agents need it — YAGNI for one agent.)
+(The `spring-boot` plugin alias lives in the version catalog's `[plugins]` section, added in Task 1's review pass.)
 
 Spring AI 2.0 is a milestone release, accepted deliberately: only the `bootstrap` package and the one `SpringAiLanguageModel` adapter touch it, so a breaking change before GA cannot reach domain or application code (NFR-PORT). If `./gradlew :agents:agent-spec:compileJava` flags renamed Spring AI types in the adapter, fix the adapter only — check the [Spring AI 2.0 docs](https://docs.spring.io/spring-ai/reference/) for the current `ChatModel`/`Prompt` API.
 
