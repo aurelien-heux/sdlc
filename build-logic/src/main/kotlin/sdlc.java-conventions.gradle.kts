@@ -1,4 +1,4 @@
-plugins { java }
+plugins { `java-library` }
 
 repositories { mavenCentral() }
 
