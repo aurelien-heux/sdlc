@@ -881,7 +881,8 @@ public final class FrontmatterParser {
         int end = content.indexOf("\n---", 3);
         if (end < 0) throw new IllegalArgumentException("unterminated frontmatter: " + repoPath);
         String yaml = content.substring(3, end);
-        String body = content.substring(content.indexOf('\n', end + 1) + 1);
+        int nl = content.indexOf('\n', end + 1);
+        String body = nl < 0 ? "" : content.substring(nl + 1);
 
         Map<String, Object> fm = new Yaml().load(yaml);
         Map<String, Object> prov = (Map<String, Object>) fm.getOrDefault("provenance", Map.of());
@@ -927,7 +928,7 @@ public final class FrontmatterParser {
     }
 
     /** Identical to `git hash-object`: sha1("blob <len>\0<content>"). */
-    static String gitBlobSha(String content) {
+    public static String gitBlobSha(String content) {
         try {
             byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
             var digest = MessageDigest.getInstance("SHA-1");
@@ -2548,7 +2549,7 @@ class EndToEndTest {
 
         // --- 2. human approves through the gate ---
         var hitl = new ConsoleHumanInTheLoop(new BufferedReader(new StringReader("y\n")), "a.dupont");
-        new ApproveArtifactUseCase(graph, hitl, Instant::now).review(specId);
+        new ApproveArtifactUseCase(graph, repo, hitl, Instant::now).review(specId);
         assertThat(graph.get(specId).orElseThrow().status()).isEqualTo(NodeStatus.APPROVED);
 
         // --- 3. upstream requirement changes → spec flagged stale ---
@@ -2620,7 +2621,7 @@ public class AgentSpecApplication {
             var hitl = new ConsoleHumanInTheLoop(
                     new BufferedReader(new InputStreamReader(System.in)),
                     System.getProperty("user.name"));
-            var decision = new ApproveArtifactUseCase(graph, hitl, Instant::now).review(specId);
+            var decision = new ApproveArtifactUseCase(graph, repo, hitl, Instant::now).review(specId);
             System.out.println(decision.approved()
                     ? specId.value() + " APPROVED — see " + workspace.resolve("specs")
                     : specId.value() + " returned to DRAFT: " + decision.feedback());
