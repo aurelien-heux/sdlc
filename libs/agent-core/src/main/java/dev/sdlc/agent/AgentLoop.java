@@ -33,19 +33,25 @@ public final class AgentLoop {
             trace.step(runId, "model", response.wantsTools() ? "tool-request" : "final",
                     response.usage().inputTokens(), response.usage().outputTokens(),
                     response.usage().costUsd());
-            if (cost > guardrails.costCeilingUsd()) {
-                trace.finish(runId, "aborted:cost");
-                throw new GuardrailExceeded("cost ceiling exceeded: $" + cost);
-            }
             if (!response.wantsTools()) {
                 trace.finish(runId, "completed");
                 return new AgentRunResult(response.finalText(), i, tokens, cost);
             }
-            for (var call : response.toolCalls()) {
-                String result = tools.execute(call.toolName(), call.arguments());
-                trace.step(runId, "tool:" + call.toolName(), result, 0, 0, 0);
-                messages.add(new Message(Role.TOOL_RESULT,
-                        "[" + call.toolName() + "] " + result));
+            // the model wants more work; only then is further spend preventable
+            if (cost > guardrails.costCeilingUsd()) {
+                trace.finish(runId, "aborted:cost");
+                throw new GuardrailExceeded("cost ceiling exceeded: $" + cost);
+            }
+            try {
+                for (var call : response.toolCalls()) {
+                    String result = tools.execute(call.toolName(), call.arguments());
+                    trace.step(runId, "tool:" + call.toolName(), result, 0, 0, 0);
+                    messages.add(new Message(Role.TOOL_RESULT,
+                            "[" + call.toolName() + "] " + result));
+                }
+            } catch (RuntimeException e) {
+                trace.finish(runId, "aborted:tool-error");
+                throw e;
             }
         }
         trace.finish(runId, "aborted:iterations");
