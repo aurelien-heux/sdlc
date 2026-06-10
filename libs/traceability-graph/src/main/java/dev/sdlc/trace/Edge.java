@@ -17,8 +17,7 @@ public record Edge(String id, EdgeType type, ArtifactId from, ArtifactId to,
 
     public static Edge current(EdgeType type, ArtifactId from, ArtifactId to,
                                String upstreamSha, String establishedBy, Instant at) {
-        return new Edge(from.value() + "->" + to.value() + ":" + type, type, from, to,
-                upstreamSha, LinkStatus.CURRENT, establishedBy, at, establishedBy);
+        return new Edge(null, type, from, to, upstreamSha, LinkStatus.CURRENT, establishedBy, at, establishedBy);
     }
 
     public Edge withStatus(LinkStatus status) {

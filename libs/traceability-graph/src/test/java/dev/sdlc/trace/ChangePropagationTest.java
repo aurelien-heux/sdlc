@@ -65,4 +65,32 @@ class ChangePropagationTest {
         assertThat(graph.staleNodes()).extracting(n -> n.id().value())
                 .doesNotContain("SPEC-0007");
     }
+
+    @Test
+    void revalidatingEdgeOfFormerlyProposedNodeDemotesToDraftInsteadOfCrashing() {
+        // SPEC was PROPOSED (not human-approved) when flagged; revalidation must not promote it
+        graph.upsert(node("SPEC-0007", NodeType.SPECIFICATION, NodeStatus.PROPOSED, "s1"));
+        graph.applyChange(ArtifactId.of("REQ-0012"), "r2");
+        graph.revalidate("SPEC-0007->REQ-0012:DERIVES_FROM", "a.dupont");
+        assertThat(graph.get(ArtifactId.of("SPEC-0007")).orElseThrow().status())
+                .isEqualTo(NodeStatus.DRAFT);
+    }
+
+    @Test
+    void revalidationClearsTransitivelyFlaggedDependentsWithNoStaleEdges() {
+        graph.applyChange(ArtifactId.of("REQ-0012"), "r2");
+        // STORY-0042 was flagged transitively; its own edge to SPEC-0007 is still CURRENT
+        graph.revalidate("SPEC-0007->REQ-0012:DERIVES_FROM", "a.dupont");
+        assertThat(graph.staleNodes()).isEmpty(); // both SPEC and STORY cleared
+    }
+
+    @Test
+    void applyChangeWithUnchangedShaIsAFullNoOp() {
+        graph.applyChange(ArtifactId.of("REQ-0012"), "r2");
+        var versionAfterFirst = graph.get(ArtifactId.of("REQ-0012")).orElseThrow().version();
+        var events = graph.applyChange(ArtifactId.of("REQ-0012"), "r2"); // redelivery
+        assertThat(events).isEmpty();
+        assertThat(graph.get(ArtifactId.of("REQ-0012")).orElseThrow().version())
+                .isEqualTo(versionAfterFirst);
+    }
 }

@@ -6,7 +6,10 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Phase 0 projection. Phase 1 replaces this with a Postgres adapter behind the same port. */
+/**
+ * Phase 0 projection. Phase 1 replaces this with a Postgres adapter behind the same port.
+ * Not safe for concurrent mutation: maps are concurrent for safe publication only.
+ */
 public final class InMemoryTraceabilityGraph implements TraceabilityGraphPort {
     private final Map<ArtifactId, Node> nodes = new ConcurrentHashMap<>();
     private final Map<String, Edge> edges = new ConcurrentHashMap<>();
@@ -46,20 +49,34 @@ public final class InMemoryTraceabilityGraph implements TraceabilityGraphPort {
         var edge = edges.get(edgeId);
         if (edge == null) throw new NoSuchElementException("edge " + edgeId);
         var upstream = nodes.get(edge.to());
-        var now = Instant.now();
-        edges.put(edgeId, edge.revalidated(upstream.blobSha(), validatedBy, now));
-        // if the from-node has no remaining stale inbound deps, clear its flag
-        var from = nodes.get(edge.from());
+        if (upstream == null) throw new NoSuchElementException("node " + edge.to());
+        if (edge.linkStatus() == LinkStatus.CURRENT
+                && edge.upstreamBlobShaAtLink().equals(upstream.blobSha()))
+            return; // nothing to revalidate; keep the original audit stamp
+        edges.put(edgeId, edge.revalidated(upstream.blobSha(), validatedBy, Instant.now()));
+        clearFlagIfNoStaleDeps(edge.from());
+    }
+
+    /** Clears NEEDS_REVALIDATION once no inbound STALE edge remains; cascades to dependents. */
+    private void clearFlagIfNoStaleDeps(ArtifactId id) {
+        var node = nodes.get(id);
+        if (node == null || node.status() != NodeStatus.NEEDS_REVALIDATION) return;
         boolean stillStale = edges.values().stream()
-                .anyMatch(e -> e.from().equals(from.id()) && e.linkStatus() == LinkStatus.STALE);
-        if (!stillStale && from.status() == NodeStatus.NEEDS_REVALIDATION)
-            nodes.put(from.id(), from.withStatus(NodeStatus.APPROVED, from.provenance(), now));
+                .anyMatch(e -> e.from().equals(id) && e.linkStatus() == LinkStatus.STALE);
+        if (stillStale) return;
+        // restore eligibility from provenance: never silently re-promote unapproved work
+        var restored = node.provenance().humanApproved() ? NodeStatus.APPROVED : NodeStatus.DRAFT;
+        nodes.put(id, node.withStatus(restored, node.provenance(), Instant.now()));
+        for (var e : List.copyOf(edges.values()))
+            if (e.to().equals(id) && (e.type() == EdgeType.DERIVES_FROM || e.type() == EdgeType.SATISFIES))
+                clearFlagIfNoStaleDeps(e.from());
     }
 
     @Override
     public List<RevalidationRequested> applyChange(ArtifactId nodeId, String newBlobSha) {
         var changed = nodes.get(nodeId);
         if (changed == null) throw new NoSuchElementException("node " + nodeId);
+        if (changed.blobSha().equals(newBlobSha)) return List.of(); // redelivery: full no-op
         nodes.put(nodeId, changed.withContentChange(newBlobSha, Instant.now()));
 
         var events = new ArrayList<RevalidationRequested>();
