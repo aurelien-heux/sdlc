@@ -1,0 +1,63 @@
+package dev.sdlc.agentspec.application;
+
+import dev.sdlc.agent.port.ArtifactRepositoryPort;
+import dev.sdlc.agent.port.HumanInTheLoopPort;
+import dev.sdlc.agent.port.HumanInTheLoopPort.ApprovalDecision;
+import dev.sdlc.domain.ArtifactId;
+import dev.sdlc.domain.NodeStatus;
+import dev.sdlc.trace.Node;
+import dev.sdlc.trace.TraceabilityGraphPort;
+
+import java.time.Instant;
+import java.util.function.Supplier;
+
+/**
+ * FR-HITL-1 / UC-0005: no node reaches APPROVED without a recorded human approver.
+ * The decision is persisted to the artifact file's frontmatter (canonical store) AND the
+ * graph; the file rewrite intentionally does not trigger change propagation — approval
+ * is a metadata change, not a content change for dependents.
+ */
+public final class ApproveArtifactUseCase {
+    private final TraceabilityGraphPort graph;
+    private final ArtifactRepositoryPort repo;
+    private final HumanInTheLoopPort human;
+    private final Supplier<Instant> clock;
+
+    public ApproveArtifactUseCase(TraceabilityGraphPort graph, ArtifactRepositoryPort repo,
+                                  HumanInTheLoopPort human, Supplier<Instant> clock) {
+        this.graph = graph; this.repo = repo; this.human = human; this.clock = clock;
+    }
+
+    public ApprovalDecision review(ArtifactId id) {
+        var node = graph.get(id).orElseThrow(() -> new IllegalStateException("unknown node " + id));
+        if (node.status() != NodeStatus.PROPOSED)
+            throw new IllegalStateException(id + " is " + node.status() + ", expected PROPOSED");
+
+        var decision = human.requestApproval(id, node.title());
+        var now = clock.get();
+        Node updated;
+        if (decision.approved()) {
+            updated = node.withStatus(NodeStatus.APPROVED,
+                    node.provenance().approve(decision.reviewer(), now), now);
+        } else {
+            updated = node.withStatus(NodeStatus.DRAFT, node.provenance(), now);
+        }
+        graph.upsert(persistFrontmatter(updated, decision, now));
+        return decision;
+    }
+
+    /** Rewrites status/humanApproved/approvedBy in the file's frontmatter; returns the node with the new sha. */
+    private Node persistFrontmatter(Node node, ApprovalDecision decision, Instant now) {
+        var content = repo.read(node.repoPath()).orElse(null);
+        if (content == null) return node; // no file (graph-only usage); nothing to rewrite
+
+        var updated = content.replaceFirst("(?m)^status: .*$", "status: " + node.status());
+        if (decision.approved()) {
+            updated = updated.replaceFirst("(?m)^(\\s*)humanApproved: false$",
+                    "$1humanApproved: true\n$1approvedBy: '"
+                            + decision.reviewer().replace("'", "''") + "'");
+        }
+        var sha = repo.write(node.repoPath(), updated);
+        return node.withContentChange(sha, now);
+    }
+}
