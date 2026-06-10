@@ -103,4 +103,31 @@ class ApproveArtifactUseCaseTest {
                 .review(specId))
             .isInstanceOf(IllegalStateException.class).hasMessageContaining("PROPOSED");
     }
+
+    HumanInTheLoopPort decideAs(String reviewer) {
+        return new HumanInTheLoopPort() {
+            public String askClarifyingQuestion(String q) { return ""; }
+            public ApprovalDecision requestApproval(ArtifactId a, String s) {
+                return new ApprovalDecision(true, reviewer, null);
+            }
+        };
+    }
+
+    @Test
+    void reviewerNamesWithQuotesAndRegexMetacharactersRoundTrip() {
+        var result = new ApproveArtifactUseCase(graph, repo, decideAs("o'brien$1\\x"), () -> T0).review(specId);
+
+        assertThat(result.approved()).isTrue();
+        var reparsed = new FrontmatterParser().parse(files.get("specs/SPEC-0001.md"), "x.md");
+        assertThat(reparsed.node().provenance().approvedBy()).isEqualTo("o'brien$1\\x");
+    }
+
+    @Test
+    void missingArtifactFileFailsLoudlyInsteadOfSilentlyDiverging() {
+        files.clear(); // graph says PROPOSED but no canonical file exists
+        assertThatThrownBy(() -> new ApproveArtifactUseCase(graph, repo, decide(true, null), () -> T0)
+                .review(specId))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("specs/SPEC-0001.md");
+    }
 }

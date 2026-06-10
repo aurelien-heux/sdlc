@@ -48,14 +48,14 @@ public final class ApproveArtifactUseCase {
 
     /** Rewrites status/humanApproved/approvedBy in the file's frontmatter; returns the node with the new sha. */
     private Node persistFrontmatter(Node node, ApprovalDecision decision, Instant now) {
-        var content = repo.read(node.repoPath()).orElse(null);
-        if (content == null) return node; // no file (graph-only usage); nothing to rewrite
+        var content = repo.read(node.repoPath()).orElseThrow(() -> new IllegalStateException(
+                "canonical artifact file missing: " + node.repoPath()));
 
         var updated = content.replaceFirst("(?m)^status: .*$", "status: " + node.status());
         if (decision.approved()) {
             updated = updated.replaceFirst("(?m)^(\\s*)humanApproved: false$",
-                    "$1humanApproved: true\n$1approvedBy: '"
-                            + decision.reviewer().replace("'", "''") + "'");
+                    "$1humanApproved: true\n$1approvedBy: " + java.util.regex.Matcher.quoteReplacement(
+                            "'" + decision.reviewer().replace("'", "''") + "'"));
         }
         var sha = repo.write(node.repoPath(), updated);
         return node.withContentChange(sha, now);
