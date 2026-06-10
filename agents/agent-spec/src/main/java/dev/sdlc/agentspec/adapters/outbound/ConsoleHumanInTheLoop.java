@@ -25,9 +25,10 @@ public final class ConsoleHumanInTheLoop implements HumanInTheLoopPort {
     @Override public ApprovalDecision requestApproval(ArtifactId artifact, String summary) {
         System.out.println("\n[approval requested] " + artifact.value() + " — " + summary);
         System.out.print("approve? (y/n + optional feedback): ");
-        String line = readLine();
-        boolean approved = line.trim().toLowerCase().startsWith("y");
-        String feedback = line.trim().length() > 1 ? line.trim().substring(1).trim() : null;
+        String trimmed = readLine().trim();
+        boolean approved = trimmed.toLowerCase().startsWith("y");
+        int spaceAt = trimmed.indexOf(' ');
+        String feedback = spaceAt >= 0 ? trimmed.substring(spaceAt + 1).trim() : null;
         return new ApprovalDecision(approved, reviewer, feedback);
     }
 
