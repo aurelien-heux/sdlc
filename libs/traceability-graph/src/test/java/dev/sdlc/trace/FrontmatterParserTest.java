@@ -47,4 +47,48 @@ class FrontmatterParserTest {
         assertThatThrownBy(() -> new FrontmatterParser().parse("no frontmatter", "x.md"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void fileWithoutTrailingNewlineAfterClosingFenceHasEmptyBody() {
+        var artifact = new FrontmatterParser().parse("""
+                ---
+                id: REQ-0001
+                type: Requirement
+                title: t
+                status: DRAFT
+                provenance:
+                  sourceRefs: [x]
+                  generatedBy: h
+                  confidence: 1.0
+                  assumptions: []
+                  humanApproved: false
+                ---""", "r.md");
+        assertThat(artifact.body()).isEmpty();
+    }
+
+    @Test
+    void malformedFrontmatterFailuresNameTheFile() {
+        // missing required keys
+        assertThatThrownBy(() -> new FrontmatterParser().parse("---\ntitle: only\n---\nbody", "bad/missing-keys.md"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("bad/missing-keys.md");
+        // wrong scalar type for confidence
+        assertThatThrownBy(() -> new FrontmatterParser().parse("""
+                ---
+                id: REQ-0001
+                type: Requirement
+                title: t
+                status: DRAFT
+                provenance:
+                  sourceRefs: [x]
+                  generatedBy: h
+                  confidence: high
+                  assumptions: []
+                  humanApproved: false
+                ---
+                body
+                """, "bad/confidence.md"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("bad/confidence.md");
+    }
 }

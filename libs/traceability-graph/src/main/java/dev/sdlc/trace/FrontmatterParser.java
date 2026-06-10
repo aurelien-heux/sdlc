@@ -11,16 +11,25 @@ import java.util.*;
 /** Frontmatter is the canonical source of truth for identity and links (brief §12.1). */
 public final class FrontmatterParser {
 
-    @SuppressWarnings("unchecked")
     public ArtifactFile parse(String content, String repoPath) {
         if (!content.startsWith("---"))
             throw new IllegalArgumentException("missing frontmatter: " + repoPath);
         int end = content.indexOf("\n---", 3);
         if (end < 0) throw new IllegalArgumentException("unterminated frontmatter: " + repoPath);
         String yaml = content.substring(3, end);
-        String body = content.substring(content.indexOf('\n', end + 1) + 1);
+        int nl = content.indexOf('\n', end + 1);
+        String body = nl < 0 ? "" : content.substring(nl + 1);
+        try {
+            return toArtifact(content, yaml, body, repoPath);
+        } catch (IllegalArgumentException | ClassCastException | NullPointerException e) {
+            throw new IllegalArgumentException("invalid frontmatter in " + repoPath + ": " + e.getMessage(), e);
+        }
+    }
 
+    @SuppressWarnings("unchecked")
+    private ArtifactFile toArtifact(String content, String yaml, String body, String repoPath) {
         Map<String, Object> fm = new Yaml().load(yaml);
+        if (fm == null) throw new IllegalArgumentException("empty frontmatter");
         Map<String, Object> prov = (Map<String, Object>) fm.getOrDefault("provenance", Map.of());
 
         var provenance = new Provenance(
@@ -33,12 +42,12 @@ public final class FrontmatterParser {
                 null);
 
         var node = new Node(
-                ArtifactId.of((String) fm.get("id")),
-                nodeType((String) fm.get("type")),
+                ArtifactId.of((String) require(fm, "id")),
+                nodeType((String) require(fm, "type")),
                 (String) fm.get("title"),
                 repoPath,
                 gitBlobSha(content),
-                NodeStatus.valueOf((String) fm.get("status")),
+                NodeStatus.valueOf((String) require(fm, "status")),
                 1, provenance, Instant.now(), Instant.now());
 
         Map<EdgeType, List<ArtifactId>> edges = new EnumMap<>(EdgeType.class);
@@ -46,6 +55,12 @@ public final class FrontmatterParser {
         putEdges(edges, EdgeType.CONSTRAINS, fm.get("constrainedBy"));
         putEdges(edges, EdgeType.DEPENDS_ON, fm.get("dependsOn"));
         return new ArtifactFile(node, edges, body);
+    }
+
+    private static Object require(Map<String, Object> fm, String key) {
+        var value = fm.get(key);
+        if (value == null) throw new IllegalArgumentException("missing required key: " + key);
+        return value;
     }
 
     private static NodeType nodeType(String value) {
