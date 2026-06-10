@@ -1,0 +1,6 @@
+package dev.sdlc.domain;
+
+public enum EdgeType {
+    DERIVES_FROM, SATISFIES, VERIFIES, DEPENDS_ON,
+    CONFLICTS_WITH, DUPLICATES, CONSTRAINS, SUPERSEDES
+}

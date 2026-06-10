@@ -1,0 +1,6 @@
+package dev.sdlc.domain;
+
+public enum NodeType {
+    GOAL, REQUIREMENT, NFR, USE_CASE, SPECIFICATION,
+    DESIGN_ELEMENT, ADR, API_CONTRACT, BACKLOG_ITEM, CODE, TEST
+}
