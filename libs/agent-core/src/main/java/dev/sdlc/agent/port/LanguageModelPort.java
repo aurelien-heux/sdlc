@@ -15,7 +15,12 @@ public interface LanguageModelPort {
 
     /** Either finalText is set (model finished) or toolCalls is non-empty (model wants tools). */
     record ModelResponse(String finalText, List<ToolCall> toolCalls, Usage usage) {
-        public boolean wantsTools() { return toolCalls != null && !toolCalls.isEmpty(); }
+        public ModelResponse {
+            toolCalls = toolCalls == null ? List.of() : List.copyOf(toolCalls);
+            if (finalText == null && toolCalls.isEmpty())
+                throw new IllegalArgumentException("model response needs finalText or toolCalls");
+        }
+        public boolean wantsTools() { return !toolCalls.isEmpty(); }
     }
     record ToolCall(String toolName, Map<String, Object> arguments) {}
     record Usage(long inputTokens, long outputTokens, double costUsd) {}

@@ -1,5 +1,7 @@
 package dev.sdlc.agent.port;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -10,7 +12,10 @@ public final class ToolRegistry {
     private final Map<String, Tool> tools;
 
     public ToolRegistry(List<Tool> tools) {
-        this.tools = tools.stream().collect(Collectors.toUnmodifiableMap(Tool::name, Function.identity()));
+        this.tools = Collections.unmodifiableMap(tools.stream().collect(Collectors.toMap(
+                Tool::name, Function.identity(),
+                (a, b) -> { throw new IllegalArgumentException("duplicate tool name: " + a.name()); },
+                LinkedHashMap::new)));
     }
 
     public List<LanguageModelPort.ToolSchema> schemas() {

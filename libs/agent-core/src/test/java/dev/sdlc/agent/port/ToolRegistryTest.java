@@ -26,4 +26,28 @@ class ToolRegistryTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("not allow-listed");
     }
+
+    @Test
+    void schemasPreserveRegistrationOrder() {
+        Tool a = namedTool("alpha"); Tool b = namedTool("beta"); Tool c = namedTool("gamma");
+        var registry = new ToolRegistry(java.util.List.of(c, a, b));
+        assertThat(registry.schemas()).extracting(LanguageModelPort.ToolSchema::name)
+                .containsExactly("gamma", "alpha", "beta");
+    }
+
+    @Test
+    void duplicateToolNamesAreRejectedWithDomainMessage() {
+        assertThatThrownBy(() -> new ToolRegistry(java.util.List.of(namedTool("echo"), namedTool("echo"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("duplicate tool name: echo");
+    }
+
+    private Tool namedTool(String name) {
+        return new Tool() {
+            public String name() { return name; }
+            public String description() { return name; }
+            public Map<String, String> parameterSchema() { return Map.of(); }
+            public String execute(Map<String, Object> args) { return name; }
+        };
+    }
 }
