@@ -31,7 +31,10 @@ public final class SpringAiLanguageModel implements LanguageModelPort {
         }
         var response = chatModel.call(new Prompt(messages));
         var usage = response.getMetadata().getUsage();
+        long in = usage.getPromptTokens() == null ? 0 : usage.getPromptTokens();
+        long out = usage.getCompletionTokens() == null ? 0 : usage.getCompletionTokens();
+        // cost stays 0.0 in Phase 0: pricing lookup is a Phase 1 concern (NFR-COST tracks tokens now)
         return new ModelResponse(response.getResult().getOutput().getText(), List.of(),
-                new Usage(usage.getPromptTokens(), usage.getCompletionTokens(), 0.0));
+                new Usage(in, out, 0.0));
     }
 }

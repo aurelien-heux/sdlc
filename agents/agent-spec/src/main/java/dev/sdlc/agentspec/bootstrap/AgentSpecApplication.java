@@ -35,8 +35,15 @@ public class AgentSpecApplication {
 
     @Bean CommandLineRunner demo(ChatModel chatModel) {
         return args -> {
-            // usage: --workspace=./workspace REQ-0001 [REQ-0002 ...]
+            // usage: -Dworkspace=./workspace, args: REQ-0001 [REQ-0002 ...]
             Path workspace = Path.of(System.getProperty("workspace", "workspace"));
+
+            var reqIds = List.of(args).stream().map(ArtifactId::of).toList();
+            if (reqIds.isEmpty()) {
+                System.out.println("usage: bootRun --args=\"REQ-0001 [REQ-0002 ...]\" (-Dworkspace=./workspace)");
+                return;
+            }
+
             var graph = new InMemoryTraceabilityGraph();
             new ProjectionBuilder(new FrontmatterParser()).rebuild(workspace, graph);
             var repo = new FileArtifactRepository(workspace);
@@ -46,8 +53,6 @@ public class AgentSpecApplication {
             var loop = new AgentLoop(new SpringAiLanguageModel(chatModel),
                     new ToolRegistry(List.of()), new LoggingRunTrace(),
                     new Guardrails(8, 0.50));
-
-            var reqIds = List.of(args).stream().map(ArtifactId::of).toList();
             var specId = new GenerateSpecificationUseCase(loop, graph, repo, bus,
                     new SpecDraftParser(), "agent-spec@v1").generate(reqIds);
 

@@ -103,5 +103,12 @@ class EndToEndTest {
         assertThat(bus.log()).anyMatch(e -> e instanceof RevalidationRequested r
                 && r.subject().equals(specId));
         assertThat(graph.staleNodes()).extracting(n -> n.id().value()).contains(specId.value());
+
+        // --- 4. propagation also works on a freshly rebuilt projection (edges round-trip) ---
+        var rebuiltAfterChange = new InMemoryTraceabilityGraph();
+        new ProjectionBuilder(new FrontmatterParser()).rebuild(workspace, rebuiltAfterChange);
+        var events2 = rebuiltAfterChange.applyChange(ArtifactId.of("REQ-0001"),
+                FrontmatterParser.gitBlobSha("different content"));
+        assertThat(events2).extracting(e -> e.subject().value()).contains(specId.value());
     }
 }

@@ -3,7 +3,7 @@ junit = "5.11.4"
 assertj = "3.27.3"
 archunit = "1.4.2"
 snakeyaml = "2.3"
-springBoot = "4.0.6"     # latest GA (Apr 2026)
+springBoot = "4.0.6"     # plugin version; runtime Boot is lifted to 4.1.0-M2 by spring-ai 2.0.0-M4 — re-pin at Spring AI GA
 springAi = "2.0.0-M4"    # the 2.x line is the one compatible with Boot 4; GA expected mid-2026.
                          # If a 2.0.x GA exists when you execute this task, use it instead.
 
