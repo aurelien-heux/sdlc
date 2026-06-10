@@ -19,3 +19,8 @@ dependencies {
     implementation(libs.spring.boot.starter)
     implementation(libs.spring.ai.anthropic)
 }
+
+// the demo prompts for approval on stdin; without this, bootRun sees EOF and auto-rejects
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+    standardInput = System.`in`
+}
