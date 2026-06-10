@@ -8,6 +8,13 @@ public record Edge(String id, EdgeType type, ArtifactId from, ArtifactId to,
                    String upstreamBlobShaAtLink, LinkStatus linkStatus,
                    String establishedBy, Instant validatedAt, String validatedBy) {
 
+    public Edge {
+        var expected = from.value() + "->" + to.value() + ":" + type;
+        if (id == null) id = expected;
+        else if (!id.equals(expected))
+            throw new IllegalArgumentException("edge id must be " + expected + ", was: " + id);
+    }
+
     public static Edge current(EdgeType type, ArtifactId from, ArtifactId to,
                                String upstreamSha, String establishedBy, Instant at) {
         return new Edge(from.value() + "->" + to.value() + ":" + type, type, from, to,

@@ -13,6 +13,7 @@ public record Node(ArtifactId id, NodeType type, String title, String repoPath,
             throw new IllegalArgumentException("APPROVED requires provenance.humanApproved");
     }
 
+    /** Content change keeps the node's status (even APPROVED): per brief §12.6 only downstream is flagged. */
     public Node withContentChange(String newBlobSha, Instant at) {
         return new Node(id, type, title, repoPath, newBlobSha, status, version + 1,
                 provenance, createdAt, at);
