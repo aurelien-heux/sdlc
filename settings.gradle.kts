@@ -6,4 +6,4 @@ rootProject.name = "sdlc-platform"
 include("libs:domain-shared")
 include("libs:traceability-graph")
 include("libs:agent-core")
-// later tasks add: agents:agent-spec
+include("agents:agent-spec")
