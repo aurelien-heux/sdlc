@@ -1,0 +1,13 @@
+# Any OpenAI-compatible endpoint (OpenAI, Ollama, vLLM, LM Studio, LiteLLM):
+# point OPENAI_BASE_URL at it; the client appends /v1/chat/completions.
+spring:
+  ai:
+    model:
+      chat: openai
+    openai:
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: ${OPENAI_MODEL:gpt-5.2}
+          max-tokens: 4096

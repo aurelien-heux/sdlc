@@ -1,5 +1,7 @@
 spring:
   ai:
+    model:
+      chat: anthropic   # default provider; the 'openai' profile flips this
     anthropic:
       api-key: ${ANTHROPIC_API_KEY}
       chat:

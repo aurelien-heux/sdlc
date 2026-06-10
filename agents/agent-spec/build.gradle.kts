@@ -18,6 +18,13 @@ dependencies {
     testImplementation(testFixtures(project(":libs:agent-core")))
     implementation(libs.spring.boot.starter)
     implementation(libs.spring.ai.anthropic)
+    implementation(libs.spring.ai.openai)
+    testImplementation(libs.spring.boot.starter.test)
+    constraints {
+        // anthropic-java pulls httpclient5:5.3.1; Boot 4.1's HttpComponents request factory
+        // (used by the OpenAI RestClient) needs 5.4+ (TlsSocketStrategy). Align with Boot's BOM.
+        implementation(libs.httpclient5)
+    }
 }
 
 // the demo prompts for approval on stdin; without this, bootRun sees EOF and auto-rejects
