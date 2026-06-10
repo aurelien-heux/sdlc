@@ -33,4 +33,13 @@ class ProvenanceTest {
         assertThat(p.humanApproved()).isTrue();
         assertThat(p.approvedBy()).isEqualTo("a.dupont");
     }
+
+    @Test
+    void confidenceMustBeWithinZeroToOne() {
+        assertThatThrownBy(() -> Provenance.generated(List.of("x"), "agent", 82.0, List.of()))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("confidence");
+        assertThatThrownBy(() -> Provenance.generated(List.of("x"), "agent", Double.NaN, List.of()))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
 }
