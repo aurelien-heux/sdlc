@@ -1,4 +1,4 @@
-package dev.sdlc.agentspec.application;
+package dev.sdlc.governance;
 
 import dev.sdlc.agent.port.ArtifactRepositoryPort;
 import dev.sdlc.agent.port.HumanInTheLoopPort;

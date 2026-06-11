@@ -7,6 +7,7 @@ dependencies {
     implementation(project(":libs:agent-core"))
     implementation(project(":libs:traceability-graph"))
     implementation(project(":libs:adapter-common"))
+    implementation(project(":libs:governance"))
     implementation(project(":libs:adapter-llm-spring"))
     implementation(project(":libs:adapter-git"))
     implementation(project(":libs:adapter-graph-postgres"))

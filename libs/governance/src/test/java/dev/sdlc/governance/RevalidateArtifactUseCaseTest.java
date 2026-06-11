@@ -1,4 +1,4 @@
-package dev.sdlc.agentspec.application;
+package dev.sdlc.governance;
 
 import dev.sdlc.adapter.common.FileArtifactRepository;
 import dev.sdlc.domain.*;
