@@ -1,0 +1,6 @@
+plugins { id("sdlc.java-conventions") }
+dependencies {
+    api(project(":libs:agent-core"))
+    implementation(project(":libs:adapter-common")) // decorates FileArtifactRepository
+    implementation(project(":libs:traceability-graph")) // gitBlobSha
+}
