@@ -128,6 +128,16 @@ public abstract class TraceabilityGraphContract {
     }
 
     @Test
+    void listByTypeFiltersAndEmptyMeansAll() {
+        assertThat(graph.listByType(NodeType.SPECIFICATION))
+                .extracting(n -> n.id().value()).containsExactly("SPEC-0007");
+        assertThat(graph.listByType(NodeType.GOAL, NodeType.REQUIREMENT))
+                .extracting(n -> n.id().value())
+                .containsExactlyInAnyOrder("GOAL-0001", "REQ-0012");
+        assertThat(graph.listByType()).hasSize(4); // empty varargs = all (downstreamOf convention)
+    }
+
+    @Test
     void createdAtFollowsTheUpsertedNode() {
         var original = graph.get(ArtifactId.of("REQ-0012")).orElseThrow();
         var later = new Node(original.id(), original.type(), original.title(), original.repoPath(),

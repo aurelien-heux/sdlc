@@ -116,6 +116,18 @@ public final class PostgresTraceabilityGraph implements TraceabilityGraphPort {
         } catch (SQLException e) { throw new IllegalStateException(e); }
     }
 
+    @Override
+    public List<Node> listByType(NodeType... types) {
+        var wanted = types.length == 0
+                ? Arrays.stream(NodeType.values()).map(Enum::name).toList()
+                : Arrays.stream(types).map(Enum::name).toList();
+        try (var c = ds.getConnection();
+             var ps = c.prepareStatement("SELECT * FROM nodes WHERE type = ANY (?)")) {
+            ps.setArray(1, c.createArrayOf("varchar", wanted.toArray()));
+            return readNodes(ps);
+        } catch (SQLException e) { throw new IllegalStateException(e); }
+    }
+
     @Override public List<Node> staleNodes() {
         try (var c = ds.getConnection();
              var ps = c.prepareStatement("SELECT * FROM nodes WHERE status = 'NEEDS_REVALIDATION'")) {

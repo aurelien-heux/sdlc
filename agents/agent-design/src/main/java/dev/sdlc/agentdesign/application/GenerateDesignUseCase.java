@@ -77,20 +77,11 @@ public final class GenerateDesignUseCase {
     }
 
     private String existingDesignSummaries() {
-        // Phase 1B: the port has no listing by type; enumerate via the id probe used for allocation.
-        // This relies on ids being allocated densely from 1 (true: nextId always takes the first gap).
-        // It breaks if an id is ever hard-deleted — acceptable Phase 1B (nothing deletes nodes);
-        // a listByType port method is the clean Phase 2 fix.
         var out = new StringBuilder();
-        for (var prefix : List.of("DES", "ADR", "API"))
-            for (int i = 1; i < 10_000; i++) {
-                var candidate = graph.get(ArtifactId.of(String.format(Locale.ROOT, "%s-%04d", prefix, i)));
-                if (candidate.isEmpty()) break;
-                var n = candidate.get();
-                if (n.status() == NodeStatus.APPROVED)
-                    out.append("- ").append(n.id()).append(" (").append(n.type()).append("): ")
-                       .append(n.title()).append('\n');
-            }
+        for (var n : graph.listByType(NodeType.DESIGN_ELEMENT, NodeType.ADR, NodeType.API_CONTRACT))
+            if (n.status() == NodeStatus.APPROVED)
+                out.append("- ").append(n.id()).append(" (").append(n.type()).append("): ")
+                   .append(n.title()).append('\n');
         return out.isEmpty() ? "(none yet)" : out.toString();
     }
 

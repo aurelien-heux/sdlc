@@ -15,8 +15,6 @@ import jakarta.json.JsonValue;
 
 import java.io.StringReader;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -30,9 +28,6 @@ public final class ReviewFlagsUseCase {
             Report only real overlaps or contradictions. Respond with ONLY \
             {"flags":[{"newId","existingId","relation":"DUPLICATES|CONFLICTS_WITH","reason"}]} \
             — an empty flags array when nothing overlaps.""";
-
-    private static final EnumSet<NodeType> INTENT_TYPES =
-            EnumSet.of(NodeType.GOAL, NodeType.REQUIREMENT, NodeType.NFR, NodeType.USE_CASE);
 
     private final LanguageModelPort model;
     private final TraceabilityGraphPort graph;
@@ -97,18 +92,7 @@ public final class ReviewFlagsUseCase {
     }
 
     private List<Node> allIntentNodes() {
-        // Phase 1B: the port has no listing by type; enumerate via the id probe used for allocation.
-        // This relies on ids being allocated densely from 1 (true: nextId always takes the first gap).
-        // It breaks if an id is ever hard-deleted — acceptable Phase 1B (nothing deletes nodes);
-        // a listByType port method is the clean Phase 2 fix.
-        var out = new ArrayList<Node>();
-        for (var prefix : List.of("GOAL", "REQ", "NFR", "UC"))
-            for (int i = 1; i < 10_000; i++) {
-                var candidate = graph.get(ArtifactId.of(String.format("%s-%04d", prefix, i)));
-                if (candidate.isEmpty()) break;
-                if (INTENT_TYPES.contains(candidate.get().type())) out.add(candidate.get());
-            }
-        return out;
+        return graph.listByType(NodeType.GOAL, NodeType.REQUIREMENT, NodeType.NFR, NodeType.USE_CASE);
     }
 
     private static String describe(List<Node> nodes) {

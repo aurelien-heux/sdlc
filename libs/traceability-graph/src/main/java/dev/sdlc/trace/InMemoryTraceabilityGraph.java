@@ -19,6 +19,12 @@ public final class InMemoryTraceabilityGraph implements TraceabilityGraphPort {
     @Override public void link(Edge edge) { edges.put(edge.id(), edge); }
 
     @Override
+    public List<Node> listByType(NodeType... types) {
+        var wanted = types.length == 0 ? EnumSet.allOf(NodeType.class) : EnumSet.of(types[0], types);
+        return nodes.values().stream().filter(n -> wanted.contains(n.type())).toList();
+    }
+
+    @Override
     public List<Node> downstreamOf(ArtifactId id, EdgeType... types) {
         var wanted = types.length == 0 ? EnumSet.allOf(EdgeType.class) : EnumSet.of(types[0], types);
         return edges.values().stream()
