@@ -10,6 +10,9 @@ import dev.sdlc.trace.TraceabilityGraphPort;
  * <p>Edges for pending proposals are intentionally NOT recreated — approval re-runs persistence
  * and the next rebuild after merge links them; a pending proposal needs only its node for
  * {@code review()} to find.
+ *
+ * <p>After a successful merge (any strategy), {@code git diff main...branch} is empty, so merged
+ * branches produce no upserts and APPROVED nodes are never clobbered.
  */
 public final class ProposalScanner {
     private final GitPort git;
