@@ -85,6 +85,11 @@ public class AgentSpecApplication {
                     new ArtifactChangedHandler(graph, bus).on(c); });
 
             // trace: console default; 'otel' profile exports spans
+            // (spec §7: without an OTLP endpoint, fall back to console instead of the SDK's
+            //  default localhost:4317 OTLP target, which spams export failures)
+            if (System.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") == null
+                    && System.getProperty("otel.traces.exporter") == null)
+                System.setProperty("otel.traces.exporter", "console");
             RunTracePort trace = env.acceptsProfiles(Profiles.of("otel"))
                     ? new OtelRunTrace(AutoConfiguredOpenTelemetrySdk.initialize().getOpenTelemetrySdk())
                     : new LoggingRunTrace();
