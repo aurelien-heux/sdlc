@@ -141,6 +141,21 @@ Model and options live in `agents/agent-spec/src/main/resources/application.yaml
 
 Profiles combine: `SPRING_PROFILES_ACTIVE=openai,postgres,git-approval,otel`.
 
+## Operator CLI
+
+`tools/workspace-cli` is an LLM-free governance tool over the artifact
+workspace (run from the repo root):
+
+```bash
+./gradlew :tools:workspace-cli:run --args="stale"                        # list NEEDS_REVALIDATION nodes
+./gradlew :tools:workspace-cli:run --args="revalidate SPEC-0001 REQ-0001" # human re-blesses a deliberate upstream change
+```
+
+`revalidate` re-stamps the downstream artifact's `derivesFrom` pin to the
+upstream's current sha and clears the staleness flag (status restored from
+provenance). When running the installed dist instead of `gradlew run`, the
+workspace root is overridable with `-Dworkspace=<dir>` (default `./workspace`).
+
 ## Layout
 
 - `libs/domain-shared` — SDLC vocabulary (artifact IDs, statuses, provenance, events)

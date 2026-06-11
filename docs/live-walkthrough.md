@@ -228,11 +228,25 @@ start — your artifact files were never touched, so there is nothing to clean u
 and nothing that can drift. The flags exist wherever the graph is rebuilt, which
 is everywhere, every time.
 
-**Recover** by reverting the edit (`git checkout -- workspace/requirements/`)
-— the pins match again and everything is clean. Re-stamping a *deliberate*
-change as re-validated exists in the library (`RevalidateArtifactUseCase`,
-used automatically by approvals) but has no CLI yet — an honest gap, tracked
-for the next phase.
+**Recover.** If the edit was a *deliberate* change you want to keep, survey
+the damage and re-bless the spec with the operator CLI (no LLM involved):
+
+```bash
+./gradlew :tools:workspace-cli:run --args="stale"                        # SPEC-0001 (SPECIFICATION) — …, and everything downstream
+./gradlew :tools:workspace-cli:run --args="revalidate SPEC-0001 REQ-0001"
+```
+
+Revalidation re-stamps the spec's `derivesFrom` pin to the requirement's
+current sha — it records that a human confirmed the spec still holds against
+the changed requirement. The re-stamp changes the spec file's sha, so the next
+`stale` report shows the design layer pinned to the old spec — work down the
+chain the same way (`revalidate DES-0001 SPEC-0001`, …), one human decision
+per link. If the spec actually *needs rework* to match the new requirement,
+don't revalidate: reject it and regenerate with agent-spec instead.
+
+For the demo, the simpler path is reverting the edit
+(`git checkout -- workspace/requirements/`) — the pins match again and
+everything is clean.
 
 ---
 
