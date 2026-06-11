@@ -1,5 +1,11 @@
-plugins { id("sdlc.java-conventions") }
+plugins {
+    id("sdlc.java-conventions")
+    `java-test-fixtures`
+}
 dependencies {
     api(project(":libs:domain-shared"))
-    implementation(libs.snakeyaml) // used by Task 7's parser
+    implementation(libs.snakeyaml) // used by the parser
+    testFixturesImplementation(platform(libs.junit.bom))
+    testFixturesImplementation(libs.junit.jupiter)
+    testFixturesImplementation(libs.assertj)
 }
