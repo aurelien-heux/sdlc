@@ -137,4 +137,29 @@ class ApproveArtifactUseCaseTest {
         assertThat(files.get("specs/SPEC-0001.md"))
                 .contains("derivesFrom: ['REQ-0012@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa']");
     }
+
+    static final class RecordingGit implements dev.sdlc.agent.port.GitPort {
+        final java.util.List<String> merges = new java.util.ArrayList<>();
+        public void ensureRepo() {}
+        public boolean branchExists(String name) { return true; }
+        public void checkoutBranch(String name, boolean createFromMain) {}
+        public void commitAll(String message) {}
+        public void merge(String branch, String message) { merges.add(branch + " :: " + message); }
+        public String currentBranch() { return "main"; }
+        public java.util.Optional<String> showFile(String branch, String path) { return java.util.Optional.empty(); }
+    }
+
+    @Test
+    void approvalMergesTheProposalBranchWhenGitIsWired() {
+        var git = new RecordingGit();
+        new ApproveArtifactUseCase(graph, repo, decide(true, null), () -> T0, git).review(specId);
+        assertThat(git.merges).containsExactly("proposal/SPEC-0001 :: approval: SPEC-0001 by a.dupont");
+    }
+
+    @Test
+    void rejectionDoesNotMerge() {
+        var git = new RecordingGit();
+        new ApproveArtifactUseCase(graph, repo, decide(false, "vague"), () -> T0, git).review(specId);
+        assertThat(git.merges).isEmpty();
+    }
 }

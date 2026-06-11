@@ -1,6 +1,7 @@
 package dev.sdlc.agentspec.application;
 
 import dev.sdlc.agent.port.ArtifactRepositoryPort;
+import dev.sdlc.agent.port.GitPort;
 import dev.sdlc.agent.port.HumanInTheLoopPort;
 import dev.sdlc.agent.port.HumanInTheLoopPort.ApprovalDecision;
 import dev.sdlc.domain.ArtifactId;
@@ -16,16 +17,25 @@ import java.util.function.Supplier;
  * The decision is persisted to the artifact file's frontmatter (canonical store) AND the
  * graph; the file rewrite intentionally does not trigger change propagation — approval
  * is a metadata change, not a content change for dependents.
+ * When a GitPort is wired (git-approval profile), approval also merges the proposal branch
+ * into main, publishing the artifact atomically.
  */
 public final class ApproveArtifactUseCase {
     private final TraceabilityGraphPort graph;
     private final ArtifactRepositoryPort repo;
     private final HumanInTheLoopPort human;
     private final Supplier<Instant> clock;
+    private final GitPort git; // nullable: plain-file mode
 
     public ApproveArtifactUseCase(TraceabilityGraphPort graph, ArtifactRepositoryPort repo,
                                   HumanInTheLoopPort human, Supplier<Instant> clock) {
-        this.graph = graph; this.repo = repo; this.human = human; this.clock = clock;
+        this(graph, repo, human, clock, null);
+    }
+
+    public ApproveArtifactUseCase(TraceabilityGraphPort graph, ArtifactRepositoryPort repo,
+                                  HumanInTheLoopPort human, Supplier<Instant> clock,
+                                  GitPort git) {
+        this.graph = graph; this.repo = repo; this.human = human; this.clock = clock; this.git = git;
     }
 
     public ApprovalDecision review(ArtifactId id) {
@@ -43,6 +53,8 @@ public final class ApproveArtifactUseCase {
             updated = node.withStatus(NodeStatus.DRAFT, node.provenance(), now);
         }
         graph.upsert(persistFrontmatter(updated, decision, now));
+        if (decision.approved() && git != null)
+            git.merge("proposal/" + id.value(), "approval: " + id.value() + " by " + decision.reviewer());
         return decision;
     }
 

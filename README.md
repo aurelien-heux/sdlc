@@ -54,6 +54,18 @@ Provider selection is done with `spring.ai.model.chat` (`anthropic` by default,
 flipped to `openai` by the profile), so exactly one `ChatModel` bean exists even
 though both Spring AI starters are on the classpath.
 
+## Profiles
+
+| Profile | Effect | Env vars |
+|---|---|---|
+| (none) | in-memory graph, plain files, console trace | ANTHROPIC_API_KEY |
+| `openai` | OpenAI-compatible LLM endpoint | OPENAI_BASE_URL, OPENAI_API_KEY, OPENAI_MODEL |
+| `postgres` | durable graph projection | SDLC_DB_URL, SDLC_DB_USER, SDLC_DB_PASSWORD |
+| `git-approval` | workspace is a git repo; proposals on branches, approval merges | — |
+| `otel` | OTLP span export per agent run/step | OTEL_EXPORTER_OTLP_ENDPOINT |
+
+Profiles combine: `SPRING_PROFILES_ACTIVE=openai,postgres,git-approval,otel`.
+
 ## Layout
 
 - `libs/domain-shared` — SDLC vocabulary (artifact IDs, statuses, provenance, events)
