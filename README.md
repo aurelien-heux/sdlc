@@ -153,8 +153,9 @@ workspace (run from the repo root):
 
 `revalidate` re-stamps the downstream artifact's `derivesFrom` pin to the
 upstream's current sha and clears the staleness flag (status restored from
-provenance). When running the installed dist instead of `gradlew run`, the
-workspace root is overridable with `-Dworkspace=<dir>` (default `./workspace`).
+provenance). The workspace root is overridable with `-Dworkspace=<dir>`
+(default `./workspace`) — works both with `gradlew run` (the property is
+forwarded) and the installed dist.
 
 ## Layout
 

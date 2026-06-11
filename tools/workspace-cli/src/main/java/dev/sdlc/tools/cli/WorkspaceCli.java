@@ -73,7 +73,9 @@ public final class WorkspaceCli {
             out.println(downstream + " revalidated against " + upstream
                     + " (now " + graph.get(down).orElseThrow().status() + ") by " + validatedBy);
             return OK;
-        } catch (IllegalArgumentException | IllegalStateException | NoSuchElementException e) {
+        } catch (IllegalArgumentException | IllegalStateException | NoSuchElementException
+                 | java.io.UncheckedIOException e) {
+            // UncheckedIOException: unreadable/full filesystem must exit 3 with a message, not a stack trace
             out.println(e.getMessage());
             return FAILED;
         }
