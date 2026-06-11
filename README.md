@@ -20,6 +20,10 @@ traceability graph.
 Run the agents in order. Each agent writes PROPOSED artifacts; a human approves them on
 stdin before the next agent in the chain can run.
 
+> **First time?** Follow the step-by-step session in
+> [docs/live-walkthrough.md](docs/live-walkthrough.md) — it includes the expected
+> console output, what to look at in the produced files, and the change-propagation demo.
+
 ### 1. Intent — inbox notes to goals/requirements/use cases
 
 ```bash
