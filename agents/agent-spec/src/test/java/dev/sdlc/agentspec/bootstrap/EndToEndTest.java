@@ -116,5 +116,13 @@ class EndToEndTest {
         assertThat(rebuiltAfterChange.get(specId).orElseThrow().status())
                 .isEqualTo(NodeStatus.NEEDS_REVALIDATION);
         assertThat(rebuildEvents).extracting(e -> e.subject().value()).contains(specId.value());
+
+        // --- 4b. the bootstrap wiring shape: rebuild publishes staleness INTO the bus ---
+        var busAfterRestart = new InProcessEventPublisher();
+        var graphAfterRestart = new InMemoryTraceabilityGraph();
+        new ProjectionBuilder(new FrontmatterParser())
+                .rebuild(workspace, graphAfterRestart, busAfterRestart::publish);
+        assertThat(busAfterRestart.log())
+                .anyMatch(e -> e instanceof RevalidationRequested r && r.subject().equals(specId));
     }
 }

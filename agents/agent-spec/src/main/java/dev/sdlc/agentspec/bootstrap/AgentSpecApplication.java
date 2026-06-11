@@ -70,7 +70,12 @@ public class AgentSpecApplication {
                 graph = new InMemoryTraceabilityGraph();
             }
 
-            new ProjectionBuilder(new FrontmatterParser()).rebuild(workspace, graph);
+            // bus first so rebuild can publish staleness events into it
+            var bus = new InProcessEventPublisher();
+            bus.subscribe(e -> { if (e instanceof ArtifactChanged c)
+                    new ArtifactChangedHandler(graph, bus).on(c); });
+
+            new ProjectionBuilder(new FrontmatterParser()).rebuild(workspace, graph, bus::publish);
 
             // repo: plain files default; 'git-approval' profile versions the workspace
             ArtifactRepositoryPort repo = new FileArtifactRepository(workspace);
@@ -79,10 +84,6 @@ public class AgentSpecApplication {
                 gitPort = new ProcessGitAdapter(workspace);
                 repo = new GitArtifactRepository(repo, gitPort);
             }
-
-            var bus = new InProcessEventPublisher();
-            bus.subscribe(e -> { if (e instanceof ArtifactChanged c)
-                    new ArtifactChangedHandler(graph, bus).on(c); });
 
             // trace: console default; 'otel' profile exports spans
             // (spec §7: without an OTLP endpoint, fall back to console instead of the SDK's
