@@ -147,6 +147,8 @@ class ApproveArtifactUseCaseTest {
         public void merge(String branch, String message) { merges.add(branch + " :: " + message); }
         public String currentBranch() { return "main"; }
         public java.util.Optional<String> showFile(String branch, String path) { return java.util.Optional.empty(); }
+        public java.util.List<String> branches(String prefix) { return java.util.List.of(); }
+        public java.util.List<String> changedFiles(String branch) { return java.util.List.of(); }
     }
 
     @Test

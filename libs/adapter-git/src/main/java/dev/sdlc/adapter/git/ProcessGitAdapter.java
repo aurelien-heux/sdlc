@@ -58,6 +58,16 @@ public final class ProcessGitAdapter implements GitPort {
         }
     }
 
+    @Override public List<String> branches(String prefix) {
+        var out = run("branch", "--list", prefix + "*", "--format=%(refname:short)");
+        return out.lines().map(String::strip).filter(s -> !s.isEmpty()).toList();
+    }
+
+    @Override public List<String> changedFiles(String branch) {
+        var out = run("diff", "--name-only", "main..." + branch);
+        return out.lines().map(String::strip).filter(s -> !s.isEmpty()).toList();
+    }
+
     private String run(String... args) {
         var cmd = new ArrayList<String>(List.of("git", "-C", workdir.toString()));
         cmd.addAll(List.of(args));

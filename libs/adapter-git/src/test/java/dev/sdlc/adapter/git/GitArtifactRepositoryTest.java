@@ -1,6 +1,11 @@
 package dev.sdlc.adapter.git;
 
 import dev.sdlc.adapter.common.FileArtifactRepository;
+import dev.sdlc.domain.ArtifactId;
+import dev.sdlc.domain.NodeStatus;
+import dev.sdlc.trace.FrontmatterParser;
+import dev.sdlc.trace.InMemoryTraceabilityGraph;
+import dev.sdlc.trace.ProjectionBuilder;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Path;
@@ -48,5 +53,37 @@ class GitArtifactRepositoryTest {
         var repo = repo(dir);
         repo.write("inbox/notes.md", "raw stakeholder text\n");
         assertThat(dir.resolve("inbox/notes.md")).exists(); // no proposal dance for non-artifacts
+    }
+
+    @Test
+    void proposalScannerRestoresPendingProposalsAfterRestart(@TempDir Path dir) {
+        var repo = repo(dir);
+        String spec = """
+                ---
+                id: SPEC-0001
+                type: Specification
+                title: 'Pending spec'
+                status: PROPOSED
+                derivesFrom: ['REQ-0012@%s']
+                provenance:
+                  sourceRefs: ['REQ-0012@%s']
+                  generatedBy: 'agent-spec@v1'
+                  confidence: 0.80
+                  assumptions: []
+                  humanApproved: false
+                ---
+                body
+                """.formatted("a".repeat(40), "a".repeat(40));
+        repo.write("specs/SPEC-0001.md", spec); // lands on proposal/SPEC-0001, NOT main
+
+        // simulate restart: fresh graph, main-tree rebuild finds nothing
+        var graph = new InMemoryTraceabilityGraph();
+        new ProjectionBuilder(new FrontmatterParser()).rebuild(dir, graph);
+        assertThat(graph.get(ArtifactId.of("SPEC-0001"))).isEmpty();
+
+        new ProposalScanner(repo.git(), new FrontmatterParser()).scanInto(graph);
+
+        var node = graph.get(ArtifactId.of("SPEC-0001")).orElseThrow();
+        assertThat(node.status()).isEqualTo(NodeStatus.PROPOSED);
     }
 }

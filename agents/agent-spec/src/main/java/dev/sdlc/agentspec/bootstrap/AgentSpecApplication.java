@@ -6,6 +6,7 @@ import dev.sdlc.adapter.common.InProcessEventPublisher;
 import dev.sdlc.adapter.common.LoggingRunTrace;
 import dev.sdlc.adapter.git.GitArtifactRepository;
 import dev.sdlc.adapter.git.ProcessGitAdapter;
+import dev.sdlc.adapter.git.ProposalScanner;
 import dev.sdlc.adapter.graph.PostgresTraceabilityGraph;
 import dev.sdlc.adapter.llm.SpringAiLanguageModel;
 import dev.sdlc.adapter.otel.OtelRunTrace;
@@ -70,20 +71,23 @@ public class AgentSpecApplication {
                 graph = new InMemoryTraceabilityGraph();
             }
 
-            // bus first so rebuild can publish staleness events into it
-            var bus = new InProcessEventPublisher();
-            bus.subscribe(e -> { if (e instanceof ArtifactChanged c)
-                    new ArtifactChangedHandler(graph, bus).on(c); });
-
-            new ProjectionBuilder(new FrontmatterParser()).rebuild(workspace, graph, bus::publish);
-
             // repo: plain files default; 'git-approval' profile versions the workspace
+            // (selected before rebuild so ProposalScanner can recover pending proposals)
             ArtifactRepositoryPort repo = new FileArtifactRepository(workspace);
             GitPort gitPort = null;
             if (env.acceptsProfiles(Profiles.of("git-approval"))) {
                 gitPort = new ProcessGitAdapter(workspace);
                 repo = new GitArtifactRepository(repo, gitPort);
             }
+
+            // bus first so rebuild can publish staleness events into it
+            var bus = new InProcessEventPublisher();
+            bus.subscribe(e -> { if (e instanceof ArtifactChanged c)
+                    new ArtifactChangedHandler(graph, bus).on(c); });
+
+            new ProjectionBuilder(new FrontmatterParser()).rebuild(workspace, graph, bus::publish);
+            if (gitPort != null)
+                new ProposalScanner(gitPort, new FrontmatterParser()).scanInto(graph);
 
             // trace: console default; 'otel' profile exports spans
             // (spec §7: without an OTLP endpoint, fall back to console instead of the SDK's
