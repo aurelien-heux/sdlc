@@ -32,7 +32,7 @@ class HexagonalArchitectureTest {
     // core libs stay framework-free (snakeyaml is the one sanctioned exception in dev.sdlc.trace)
     @ArchTest
     static final ArchRule coreLibsAreFrameworkFree = noClasses()
-            .that().resideInAnyPackage("dev.sdlc.domain..", "dev.sdlc.agent.port..", "dev.sdlc.agent")
+            .that().resideInAnyPackage("dev.sdlc.domain..", "dev.sdlc.agent.port..", "dev.sdlc.agent", "dev.sdlc.trace..")
             .should().dependOnClassesThat().resideInAnyPackage(
                     "org.springframework..", "org.springframework.ai..", "dev.langchain4j..",
                     "io.opentelemetry..", "org.postgresql..");
