@@ -76,6 +76,10 @@ class RevalidateArtifactUseCaseTest {
         // (c) graph node sha == rewritten file's sha
         assertThat(graph.get(ArtifactId.of("SPEC-0001")).orElseThrow().blobSha())
                 .isEqualTo(FrontmatterParser.gitBlobSha(specContent));
+
+        // (d) provenance keeps the ORIGINAL grounding sha — revalidation must not falsify history
+        assertThat(specContent)
+                .contains("sourceRefs: ['REQ-0012@" + OLD_SHA + "']");
     }
 
     @Test

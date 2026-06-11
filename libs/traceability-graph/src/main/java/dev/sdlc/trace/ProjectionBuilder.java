@@ -39,6 +39,7 @@ public final class ProjectionBuilder {
         } catch (IOException e) { throw new UncheckedIOException(e); }
 
         artifacts.forEach(a -> graph.upsert(a.node()));
+        var staleOwners = new java.util.ArrayList<dev.sdlc.domain.ArtifactId>();
         for (var artifact : artifacts)
             artifact.edgeTargets().forEach((type, targets) -> targets.forEach(target -> {
                 var upstreamSha = graph.get(target.id()).map(Node::blobSha).orElse("unknown");
@@ -48,8 +49,16 @@ public final class ProjectionBuilder {
                 var edge = Edge.current(type, artifact.node().id(), target.id(), linkedSha,
                         "projection", Instant.now());
                 graph.link(stale ? edge.withStatus(dev.sdlc.domain.LinkStatus.STALE) : edge);
-                if (stale) flag(graph, artifact.node().id(), target.id(), onStale);
+                if (stale) {
+                    flag(graph, artifact.node().id(), target.id(), onStale);
+                    staleOwners.add(artifact.node().id());
+                }
             }));
+        // Transitive pass: propagate staleness to all nodes downstream of each stale owner.
+        // flag() dedupes via the NEEDS_REVALIDATION check so double-events are impossible.
+        for (var owner : staleOwners)
+            for (var node : graph.impactOf(owner))
+                flag(graph, node.id(), owner, onStale);
     }
 
     private void flag(TraceabilityGraphPort graph, dev.sdlc.domain.ArtifactId owner,

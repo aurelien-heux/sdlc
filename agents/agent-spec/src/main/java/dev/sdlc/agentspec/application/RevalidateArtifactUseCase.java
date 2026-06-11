@@ -35,9 +35,14 @@ public final class RevalidateArtifactUseCase {
 
         var content = repo.read(down.repoPath()).orElseThrow(() -> new IllegalStateException(
                 "canonical artifact file missing: " + down.repoPath()));
-        var rewritten = content.replaceAll(
-                Pattern.quote(upstream.value()) + "@[0-9a-f]{40}",
-                Matcher.quoteReplacement(upstream.value() + "@" + up.blobSha()));
+        // Scope the pin re-stamp to derivesFrom lines only.
+        // provenance.sourceRefs records the ORIGINAL grounding sha (audit history is immutable).
+        // constrainedBy/dependsOn pins are not written by generators yet (1A scope) but this
+        // regex is intentionally line-scoped so they would also be left untouched.
+        var pinRegex = Pattern.quote(upstream.value()) + "@[0-9a-f]{40}";
+        var newPin = Matcher.quoteReplacement(upstream.value() + "@" + up.blobSha());
+        var rewritten = Pattern.compile("(?m)^(derivesFrom:.*)$").matcher(content)
+                .replaceAll(m -> m.group(1).replaceAll(pinRegex, newPin));
 
         // Ordering: revalidate the edge first (which clears the STALE flag and restores node
         // status from provenance), then upsert the sha-updated node to record the new blobSha.

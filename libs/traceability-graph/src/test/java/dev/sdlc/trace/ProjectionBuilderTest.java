@@ -233,5 +233,144 @@ class ProjectionBuilderTest {
         assertThat(graph.get(ArtifactId.of("SPEC-0007")).orElseThrow().status())
                 .isEqualTo(NodeStatus.NEEDS_REVALIDATION);
         assertThat(events).extracting(e -> e.subject().value()).containsExactly("SPEC-0007");
+
+        // Test gap 4: edge must exist even though upstream node is absent
+        // downstreamOf the dangling upstream id must include the pinning artifact
+        assertThat(graph.downstreamOf(ArtifactId.of("REQ-0012")))
+                .extracting(n -> n.id().value()).contains("SPEC-0007");
+    }
+
+    /**
+     * Transitive staleness at rebuild (Defect 2): if REQ-0012 was edited offline and
+     * SPEC-0007 pins a stale sha, then STORY-0042 (which derivesFrom SPEC-0007's CURRENT
+     * sha) must also be flagged NEEDS_REVALIDATION after rebuild — the spec §5 invariant
+     * must hold for chains of any depth.
+     */
+    @Test
+    void rebuildFlagsTransitiveStaleness(@TempDir Path dir) throws Exception {
+        String req = """
+                ---
+                id: REQ-0012
+                type: Requirement
+                title: Regional tax
+                status: APPROVED
+                provenance:
+                  sourceRefs: [ticket:PROJ-88]
+                  generatedBy: human
+                  confidence: 1.0
+                  assumptions: []
+                  humanApproved: true
+                  approvedBy: a.dupont
+                ---
+                EDITED content
+                """;
+        Files.writeString(dir.resolve("REQ-0012.md"), req);
+
+        // SPEC-0007 pins a stale sha for REQ-0012
+        String stalePin = "b".repeat(40);
+        String specContent = """
+                ---
+                id: SPEC-0007
+                type: Specification
+                title: Spec
+                status: APPROVED
+                derivesFrom: ['REQ-0012@%s']
+                provenance:
+                  sourceRefs: ['REQ-0012@%s']
+                  generatedBy: agent-spec@v1
+                  confidence: 0.8
+                  assumptions: []
+                  humanApproved: true
+                  approvedBy: a.dupont
+                ---
+                body
+                """.formatted(stalePin, stalePin);
+        Files.writeString(dir.resolve("SPEC-0007.md"), specContent);
+
+        // STORY-0042 pins SPEC-0007's CURRENT sha (it was up-to-date when last generated)
+        String specCurrentSha = FrontmatterParser.gitBlobSha(specContent);
+        Files.writeString(dir.resolve("STORY-0042.md"), """
+                ---
+                id: STORY-0042
+                type: BacklogItem
+                title: Story
+                status: APPROVED
+                derivesFrom: ['SPEC-0007@%s']
+                provenance:
+                  sourceRefs: ['SPEC-0007@%s']
+                  generatedBy: agent-story@v1
+                  confidence: 0.8
+                  assumptions: []
+                  humanApproved: true
+                  approvedBy: a.dupont
+                ---
+                body
+                """.formatted(specCurrentSha, specCurrentSha));
+
+        var graph = new InMemoryTraceabilityGraph();
+        var events = new ArrayList<RevalidationRequested>();
+        new ProjectionBuilder(new FrontmatterParser()).rebuild(dir, graph, events::add);
+
+        // Both SPEC-0007 (directly stale) and STORY-0042 (transitively stale) must be flagged
+        assertThat(graph.staleNodes())
+                .extracting(n -> n.id().value())
+                .containsExactlyInAnyOrder("SPEC-0007", "STORY-0042");
+        assertThat(events)
+                .extracting(e -> e.subject().value())
+                .containsExactlyInAnyOrder("SPEC-0007", "STORY-0042");
+    }
+
+    /**
+     * Test gap 3: after a clean rebuild (matching pins), a live applyChange must still
+     * propagate staleness to direct downstream — steady-state path coverage.
+     */
+    @Test
+    void afterCleanRebuildApplyChangePropagates(@TempDir Path dir) throws Exception {
+        String req = """
+                ---
+                id: REQ-0012
+                type: Requirement
+                title: Regional tax
+                status: APPROVED
+                provenance:
+                  sourceRefs: [ticket:PROJ-88]
+                  generatedBy: human
+                  confidence: 1.0
+                  assumptions: []
+                  humanApproved: true
+                  approvedBy: a.dupont
+                ---
+                body
+                """;
+        Files.writeString(dir.resolve("REQ-0012.md"), req);
+        String pin = FrontmatterParser.gitBlobSha(req);
+        Files.writeString(dir.resolve("SPEC-0007.md"), """
+                ---
+                id: SPEC-0007
+                type: Specification
+                title: Spec
+                status: APPROVED
+                derivesFrom: ['REQ-0012@%s']
+                provenance:
+                  sourceRefs: ['REQ-0012@%s']
+                  generatedBy: agent-spec@v1
+                  confidence: 0.8
+                  assumptions: []
+                  humanApproved: true
+                  approvedBy: a.dupont
+                ---
+                body
+                """.formatted(pin, pin));
+
+        var graph = new InMemoryTraceabilityGraph();
+        new ProjectionBuilder(new FrontmatterParser()).rebuild(dir, graph);
+        assertThat(graph.staleNodes()).isEmpty();
+
+        // Now apply a change to REQ-0012 (new sha)
+        var events = graph.applyChange(ArtifactId.of("REQ-0012"), "c".repeat(40));
+
+        assertThat(events).extracting(e -> e.subject().value()).contains("SPEC-0007");
+        assertThat(graph.staleNodes())
+                .extracting(n -> n.id().value()).contains("SPEC-0007");
     }
 }
