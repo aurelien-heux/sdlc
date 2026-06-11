@@ -18,6 +18,8 @@ import dev.sdlc.agentintent.application.IngestInboxUseCase;
 import dev.sdlc.agentintent.application.IntentDraftParser;
 import dev.sdlc.agentspec.application.GenerateSpecificationUseCase;
 import dev.sdlc.agentspec.application.SpecDraftParser;
+import dev.sdlc.agenttestgen.application.GenerateTestsUseCase;
+import dev.sdlc.agenttestgen.application.StepSkeletonParser;
 import dev.sdlc.domain.ArtifactId;
 import dev.sdlc.domain.EdgeType;
 import dev.sdlc.domain.NodeStatus;
@@ -43,9 +45,11 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Phase 1B definition-of-done (spec §12): the upstream loop UC-0001→UC-0004 closes through
- * ONE shared graph/workspace/bus, every transition is human-gated, an upstream edit flags the
- * full downstream chain, and a restart reproduces the exact same staleness from files alone.
+ * Phase 1B definition-of-done (spec §12), extended by Phase 2 slice 1: the loop
+ * UC-0001→UC-0004 plus test generation closes through ONE shared graph/workspace/bus,
+ * every transition is human-gated, an upstream edit flags the full downstream chain
+ * (TEST artifacts included — FR-TEST-5), and a restart reproduces the exact same
+ * staleness AND the VERIFIES edges from files alone.
  */
 class UpstreamLoopEndToEndTest {
     /** Same text as the repo's demo seed workspace/inbox/payment-notes.md (Task 12 README demo). */
@@ -86,6 +90,11 @@ class UpstreamLoopEndToEndTest {
               {"level": "story", "title": "Regional rate lookup", "description": "lookup by region",
                "acceptanceHook": "FR VAT", "estimate": "M", "dependsOn": ["Checkout tax"]}
             ]}
+            """;
+    // NOTE: the story's acceptanceHook above MUST equal SPEC_JSON's scenario name ("FR VAT") —
+    // that is what lets testgen resolve the feature→story VERIFIES edge in step 4c.
+    static final String SKELETON_JSON = """
+            {"language": "java", "content": "public class CheckoutTaxSteps { /* @Given ... */ }"}
             """;
 
     @Test
@@ -150,6 +159,23 @@ class UpstreamLoopEndToEndTest {
                 .extracting(Node::id).containsExactly(storyId);
         approve(graph, repo, epicId);
         approve(graph, repo, storyId);
+
+        // --- 4c. testgen from the approved spec: deterministic feature + LLM step skeletons;
+        //     the feature VERIFIES the spec AND the story (its acceptanceHook names the
+        //     spec's "FR VAT" scenario); approve both ---
+        var testgenModel = new FakeLanguageModel().respondWith(FakeLanguageModel.finalText(SKELETON_JSON));
+        var testIds = new GenerateTestsUseCase(testgenModel, graph, repo, bus, trace,
+                new StepSkeletonParser(), "agent-testgen@v1", new Guardrails(5, 1.0), "java")
+                .generate(specId);
+        assertThat(testIds).hasSize(2);
+        var featureTestId = testIds.get(0);
+        var stepsTestId = testIds.get(1);
+        assertThat(graph.downstreamOf(specId, EdgeType.VERIFIES))
+                .extracting(Node::id).containsExactlyInAnyOrder(featureTestId, stepsTestId);
+        assertThat(graph.downstreamOf(storyId, EdgeType.VERIFIES))
+                .extracting(Node::id).containsExactly(featureTestId);
+        approve(graph, repo, featureTestId);
+        approve(graph, repo, stepsTestId);
         assertThat(graph.staleNodes()).isEmpty(); // the whole chain is green before the edit
 
         // --- 5. propagation: edit the REQ → FULL downstream chain flagged, GOAL/REQ stay APPROVED ---
@@ -163,8 +189,10 @@ class UpstreamLoopEndToEndTest {
         var liveStale = graph.staleNodes().stream()
                 .map(n -> n.id().value()).collect(Collectors.toSet());
         assertThat(liveStale).containsExactlyInAnyOrder(specId.value(), desId.value(),
-                adrId.value(), epicId.value(), storyId.value());
-        for (var flagged : List.of(specId, desId, adrId, epicId, storyId)) {
+                adrId.value(), epicId.value(), storyId.value(),
+                featureTestId.value(), stepsTestId.value()); // FR-TEST-5: TESTs ride the spine
+        for (var flagged : List.of(specId, desId, adrId, epicId, storyId,
+                featureTestId, stepsTestId)) {
             assertThat(bus.log()).anyMatch(e -> e instanceof RevalidationRequested r
                     && r.subject().equals(flagged));
         }
@@ -181,6 +209,12 @@ class UpstreamLoopEndToEndTest {
         var rebuiltStale = rebuilt.staleNodes().stream()
                 .map(n -> n.id().value()).collect(Collectors.toSet());
         assertThat(rebuiltStale).isEqualTo(liveStale);
+        // VERIFIES edges are canonical frontmatter (`verifies:`) — the rebuilt projection
+        // must reproduce them from the tests/ files alone, no live graph state involved
+        assertThat(rebuilt.downstreamOf(specId, EdgeType.VERIFIES))
+                .extracting(Node::id).containsExactlyInAnyOrder(featureTestId, stepsTestId);
+        assertThat(rebuilt.downstreamOf(storyId, EdgeType.VERIFIES))
+                .extracting(Node::id).containsExactly(featureTestId);
         // approvals survived: spot-check the spec's reviewer in the reparsed frontmatter
         var specNode = graph.get(specId).orElseThrow();
         var reparsedSpec = new FrontmatterParser().parse(

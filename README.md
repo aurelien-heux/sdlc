@@ -1,11 +1,13 @@
 # SDLC Agents
 
-LLM-powered SDLC agents on a hexagonal Java monorepo. Four agents close the upstream
-loop: **agent-intent** turns stakeholder notes into grounded goals/requirements/use cases,
+LLM-powered SDLC agents on a hexagonal Java monorepo. Five agents close the loop:
+**agent-intent** turns stakeholder notes into grounded goals/requirements/use cases,
 **agent-spec** turns requirements into specification drafts with acceptance criteria,
-**agent-design** produces ADRs with mandatory alternatives, and **agent-backlog** decomposes
-approved specs and designs into an estimated backlog. Every artifact is human-gated,
-written as a markdown file with YAML frontmatter, and linked in a shared traceability graph.
+**agent-design** produces ADRs with mandatory alternatives, **agent-backlog** decomposes
+approved specs and designs into an estimated backlog, and **agent-testgen** turns approved
+specs into executable Cucumber test artifacts with `VERIFIES` traceability. Every artifact
+is human-gated, written as a markdown file with YAML frontmatter, and linked in a shared
+traceability graph.
 
 ## Build
 
@@ -57,6 +59,32 @@ and any `DES-xxxx` artifacts on stdin.
 Produces `EPIC-xxxx`, `STORY-xxxx`, and `TASK-xxxx` items with estimates and
 `DEPENDS_ON` edges. Approve each item on stdin.
 
+### 5. Testgen — spec to executable test artifacts
+
+```bash
+./gradlew :agents:agent-testgen:bootRun --args="SPEC-0001"
+```
+
+Produces two `TEST-xxxx` artifacts per spec: a Cucumber `.feature` file transcribed
+**deterministically** from the spec's acceptance criteria (no LLM, no hallucination
+surface) and an LLM-generated step-definition skeleton (`SDLC_TEST_LANGUAGE`, default
+`java`). Both `VERIFIES` the spec; the feature also `VERIFIES` every story whose
+`acceptanceHook` names one of its scenarios. Approve each on stdin. With the
+`target-repo` profile the artifacts are then placed into a configured repository and the
+**configured** test command runs (never model-chosen); pass/fail lands in the artifacts'
+frontmatter as `lastRun`/`lastRunAt`:
+
+```bash
+export SPRING_PROFILES_ACTIVE=target-repo
+export SDLC_TARGET_REPO=/path/to/your/repo            # required
+export SDLC_TEST_CMD="./gradlew test"                 # default if unset
+export SDLC_FEATURES_DIR=src/test/resources/features  # default if unset
+export SDLC_STEPS_DIR=src/test/java                   # default if unset
+./gradlew :agents:agent-testgen:bootRun --args="SPEC-0001"
+```
+
+The agent prints what it wrote where before running the command.
+
 ### Inbox convention
 
 Place any stakeholder document as a `*.md` file in `workspace/inbox/`. Agent-intent
@@ -66,7 +94,7 @@ failure is safe — only unprocessed files are picked up.
 
 **Demo seed:** `workspace/inbox/payment-notes.md` contains a short stakeholder meeting
 summary about cart abandonment at checkout and a regional-tax requirement — enough for
-the full intent→spec→design→backlog chain without any edits.
+the full intent→spec→design→backlog→testgen chain without any edits.
 
 ### LLM provider
 
@@ -105,6 +133,7 @@ Model and options live in `agents/agent-spec/src/main/resources/application.yaml
 | `postgres` | durable graph projection | SDLC_DB_URL, SDLC_DB_USER, SDLC_DB_PASSWORD |
 | `git-approval` | workspace is a git repo; proposals on branches, approval merges | — |
 | `otel` | OTLP span export per agent run/step | OTEL_EXPORTER_OTLP_ENDPOINT |
+| `target-repo` | agent-testgen places generated tests into a repo and runs the configured command | SDLC_TARGET_REPO (required), SDLC_TEST_CMD, SDLC_FEATURES_DIR, SDLC_STEPS_DIR |
 
 Profiles combine: `SPRING_PROFILES_ACTIVE=openai,postgres,git-approval,otel`.
 

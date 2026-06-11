@@ -19,11 +19,14 @@ dependencies {
     testImplementation(libs.archunit)
     testImplementation(testFixtures(project(":libs:agent-core")))
     // Test-scope cross-agent dependencies are for the closed-loop E2E ONLY: the loop test
-    // drives intent→spec→design→backlog inside one JVM. Production code never crosses
-    // agent boundaries — these must stay testImplementation.
+    // drives intent→spec→design→backlog→testgen inside one JVM. Production code never
+    // crosses agent boundaries — these must stay testImplementation. They ALSO put each
+    // agent's classes on this module's test classpath, which is what lets the ArchUnit
+    // HexagonalArchitectureTest here analyze every agent (dev.sdlc.agenttestgen included).
     testImplementation(project(":agents:agent-intent"))
     testImplementation(project(":agents:agent-spec"))
     testImplementation(project(":agents:agent-design"))
+    testImplementation(project(":agents:agent-testgen"))
     testImplementation(project(":libs:governance"))
     implementation(libs.spring.boot.starter)
 }
