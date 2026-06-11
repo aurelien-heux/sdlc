@@ -5,12 +5,17 @@ import dev.sdlc.agent.port.GitPort;
 import dev.sdlc.agent.port.HumanInTheLoopPort;
 import dev.sdlc.agent.port.HumanInTheLoopPort.ApprovalDecision;
 import dev.sdlc.domain.ArtifactId;
+import dev.sdlc.domain.EdgeType;
 import dev.sdlc.domain.NodeStatus;
 import dev.sdlc.trace.Node;
 import dev.sdlc.trace.TraceabilityGraphPort;
 
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * FR-HITL-1 / UC-0005: no node reaches APPROVED without a recorded human approver.
@@ -53,9 +58,38 @@ public final class ApproveArtifactUseCase {
             updated = node.withStatus(NodeStatus.DRAFT, node.provenance(), now);
         }
         graph.upsert(persistFrontmatter(updated, decision, now));
-        if (decision.approved() && git != null)
-            git.merge("proposal/" + id.value(), "approval: " + id.value() + " by " + decision.reviewer());
+        if (decision.approved()) {
+            restampDependents(id, new HashSet<>());
+            if (git != null)
+                git.merge("proposal/" + id.value(), "approval: " + id.value() + " by " + decision.reviewer());
+        }
         return decision;
+    }
+
+    /** Approval rewrites this file (new sha); dependents pinning the old sha would look stale
+     *  at rebuild though nothing semantic changed. Re-stamp their pins to the new sha —
+     *  line-scoped to derivesFrom (provenance keeps ORIGINAL grounding shas) — and cascade,
+     *  since re-stamping changes the dependent's own sha too. DAG + visited set: terminates.
+     *  Dependents linked by SATISFIES would carry their pin in a different frontmatter key;
+     *  Phase 1B writes none, so the derivesFrom-scoped rewrite is correct for now. */
+    private void restampDependents(ArtifactId approvedId, Set<ArtifactId> visited) {
+        var approved = graph.get(approvedId).orElseThrow();
+        for (var dependent : graph.downstreamOf(approvedId, EdgeType.DERIVES_FROM, EdgeType.SATISFIES)) {
+            if (!visited.add(dependent.id())) continue;
+            var content = repo.read(dependent.repoPath()).orElse(null);
+            if (content == null) continue; // proposal-branch-only dependents: next scan re-projects
+            var pinRegex = Pattern.quote(approvedId.value()) + "@[0-9a-f]{40}";
+            var newPin = Matcher.quoteReplacement(approvedId.value() + "@" + approved.blobSha());
+            var rewritten = Pattern.compile("(?m)^(derivesFrom:.*)$").matcher(content)
+                    .replaceAll(m -> m.group(1).replaceAll(pinRegex, newPin));
+            if (rewritten.equals(content)) continue;
+            var sha = repo.write(dependent.repoPath(), rewritten);
+            graph.revalidate(dependent.id().value() + "->" + approvedId.value() + ":DERIVES_FROM",
+                    "approval-restamp");
+            graph.upsert(graph.get(dependent.id()).orElseThrow()
+                    .withContentChange(sha, clock.get()));
+            restampDependents(dependent.id(), visited);
+        }
     }
 
     /** Rewrites status/humanApproved/approvedBy in the file's frontmatter; returns the node with the new sha. */

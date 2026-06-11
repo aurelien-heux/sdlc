@@ -132,6 +132,71 @@ class ApproveArtifactUseCaseTest {
     }
 
     @Test
+    void approvalRestampsDependentsPinsSoRebuildStaysClean() {
+        // GOAL approved while REQ (same batch) pins GOAL's pre-approval sha: approval rewrites
+        // GOAL's file (new sha), so REQ's derivesFrom pin must be re-stamped or the next
+        // rebuild flags REQ as stale though nothing semantic changed (FR-TRACE-2).
+        var goalFile = """
+                ---
+                id: GOAL-0001
+                type: Goal
+                title: 'Faster checkout'
+                status: PROPOSED
+                provenance:
+                  sourceRefs: ['inbox/payment-notes.md']
+                  generatedBy: 'agent-intent@v1'
+                  confidence: 0.80
+                  assumptions: []
+                  humanApproved: false
+                ---
+                Reduce checkout time.
+                """;
+        var oldGoalSha = FrontmatterParser.gitBlobSha(goalFile);
+        var reqFile = """
+                ---
+                id: REQ-0001
+                type: Requirement
+                title: 'Apply regional tax'
+                status: PROPOSED
+                derivesFrom: ['GOAL-0001@%s']
+                provenance:
+                  sourceRefs: ['GOAL-0001@%s']
+                  generatedBy: 'agent-intent@v1'
+                  confidence: 0.80
+                  assumptions: []
+                  humanApproved: false
+                ---
+                Tax by shipping region.
+                """.formatted(oldGoalSha, oldGoalSha);
+        files.put("intent/GOAL-0001.md", goalFile);
+        files.put("intent/REQ-0001.md", reqFile);
+        var goalId = ArtifactId.of("GOAL-0001");
+        var reqId = ArtifactId.of("REQ-0001");
+        graph.upsert(new Node(goalId, NodeType.GOAL, "Faster checkout", "intent/GOAL-0001.md",
+                oldGoalSha, NodeStatus.PROPOSED, 1,
+                Provenance.generated(List.of("inbox/payment-notes.md"), "agent-intent@v1", 0.8, List.of()),
+                T0, T0));
+        graph.upsert(new Node(reqId, NodeType.REQUIREMENT, "Apply regional tax", "intent/REQ-0001.md",
+                FrontmatterParser.gitBlobSha(reqFile), NodeStatus.PROPOSED, 1,
+                Provenance.generated(List.of("GOAL-0001@" + oldGoalSha), "agent-intent@v1", 0.8, List.of()),
+                T0, T0));
+        graph.link(Edge.current(EdgeType.DERIVES_FROM, reqId, goalId, oldGoalSha, "agent-intent@v1", T0));
+
+        new ApproveArtifactUseCase(graph, repo, decide(true, null), () -> T0).review(goalId);
+
+        var newGoalSha = graph.get(goalId).orElseThrow().blobSha();
+        assertThat(newGoalSha).isNotEqualTo(oldGoalSha);
+        // REQ's file now pins GOAL at its NEW sha — a rebuild from files alone stays clean
+        var reqContent = files.get("intent/REQ-0001.md");
+        assertThat(reqContent).contains("derivesFrom: ['GOAL-0001@" + newGoalSha + "']");
+        // provenance keeps the ORIGINAL grounding sha: what the agent actually read
+        assertThat(reqContent).contains("sourceRefs: ['GOAL-0001@" + oldGoalSha + "']");
+        // REQ's node carries the rewritten file's sha (the re-stamp is itself a content change)
+        assertThat(graph.get(reqId).orElseThrow().blobSha())
+                .isEqualTo(FrontmatterParser.gitBlobSha(reqContent));
+    }
+
+    @Test
     void approvalPreservesPinnedRefs() {
         new ApproveArtifactUseCase(graph, repo, decide(true, null), () -> T0).review(specId);
         assertThat(files.get("specs/SPEC-0001.md"))
