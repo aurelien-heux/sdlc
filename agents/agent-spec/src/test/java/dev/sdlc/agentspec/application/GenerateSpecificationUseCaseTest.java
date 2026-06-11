@@ -6,6 +6,7 @@ import dev.sdlc.domain.*;
 import dev.sdlc.domain.event.ArtifactProposed;
 import dev.sdlc.domain.event.SdlcEvent;
 import dev.sdlc.trace.*;
+import dev.sdlc.trace.EdgeTarget;
 import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.util.*;
@@ -108,7 +109,7 @@ class GenerateSpecificationUseCaseTest {
         assertThat(reparsed.node().provenance().assumptions())
                 .containsExactly("uses \"latest\" rates");
         assertThat(reparsed.edgeTargets().get(EdgeType.DERIVES_FROM))
-                .containsExactly(ArtifactId.of("REQ-0012"));
+                .extracting(EdgeTarget::id).containsExactly(ArtifactId.of("REQ-0012"));
     }
 
     @Test

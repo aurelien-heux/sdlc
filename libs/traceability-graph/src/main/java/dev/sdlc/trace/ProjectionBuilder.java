@@ -21,9 +21,10 @@ public final class ProjectionBuilder {
                     }).toList();
             artifacts.forEach(a -> graph.upsert(a.node()));
             for (var artifact : artifacts)
-                artifact.edgeTargets().forEach((type, targets) -> targets.forEach(to -> {
-                    var upstreamSha = graph.get(to).map(Node::blobSha).orElse("unknown");
-                    graph.link(Edge.current(type, artifact.node().id(), to, upstreamSha,
+                artifact.edgeTargets().forEach((type, targets) -> targets.forEach(target -> {
+                    var currentSha = graph.get(target.id()).map(Node::blobSha).orElse("unknown");
+                    var linkedSha = target.pinnedSha() != null ? target.pinnedSha() : currentSha;
+                    graph.link(Edge.current(type, artifact.node().id(), target.id(), linkedSha,
                             "projection", Instant.now()));
                 }));
         } catch (IOException e) { throw new UncheckedIOException(e); }

@@ -37,9 +37,10 @@ class FrontmatterParserTest {
         assertThat(artifact.node().blobSha()).hasSize(40);
         assertThat(artifact.edgeTargets())
                 .containsEntry(EdgeType.DERIVES_FROM,
-                        java.util.List.of(ArtifactId.of("REQ-0012"), ArtifactId.of("UC-0003")))
+                        java.util.List.of(new EdgeTarget(ArtifactId.of("REQ-0012"), null),
+                                new EdgeTarget(ArtifactId.of("UC-0003"), null)))
                 .containsEntry(EdgeType.CONSTRAINS,
-                        java.util.List.of(ArtifactId.of("ADR-0002")));
+                        java.util.List.of(new EdgeTarget(ArtifactId.of("ADR-0002"), null)));
     }
 
     @Test
@@ -64,6 +65,51 @@ class FrontmatterParserTest {
                   humanApproved: false
                 ---""", "r.md");
         assertThat(artifact.body()).isEmpty();
+    }
+
+    @Test
+    void parsesPinnedEdgeRefs() {
+        var artifact = new FrontmatterParser().parse("""
+                ---
+                id: SPEC-0001
+                type: Specification
+                title: t
+                status: DRAFT
+                derivesFrom: ['REQ-0012@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', UC-0003]
+                provenance:
+                  sourceRefs: [x]
+                  generatedBy: h
+                  confidence: 1.0
+                  assumptions: []
+                  humanApproved: false
+                ---
+                body
+                """, "s.md");
+        assertThat(artifact.edgeTargets().get(EdgeType.DERIVES_FROM)).containsExactly(
+                new EdgeTarget(ArtifactId.of("REQ-0012"), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+                new EdgeTarget(ArtifactId.of("UC-0003"), null));
+    }
+
+    @Test
+    void rejectsMalformedPin() {
+        assertThatThrownBy(() -> new FrontmatterParser().parse("""
+                ---
+                id: SPEC-0001
+                type: Specification
+                title: t
+                status: DRAFT
+                derivesFrom: ['REQ-0012@nothex']
+                provenance:
+                  sourceRefs: [x]
+                  generatedBy: h
+                  confidence: 1.0
+                  assumptions: []
+                  humanApproved: false
+                ---
+                body
+                """, "s.md"))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("s.md");
     }
 
     @Test

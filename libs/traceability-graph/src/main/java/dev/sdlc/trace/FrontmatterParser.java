@@ -50,7 +50,7 @@ public final class FrontmatterParser {
                 NodeStatus.valueOf((String) require(fm, "status")),
                 1, provenance, Instant.now(), Instant.now());
 
-        Map<EdgeType, List<ArtifactId>> edges = new EnumMap<>(EdgeType.class);
+        Map<EdgeType, List<EdgeTarget>> edges = new EnumMap<>(EdgeType.class);
         putEdges(edges, EdgeType.DERIVES_FROM, fm.get("derivesFrom"));
         putEdges(edges, EdgeType.CONSTRAINS, fm.get("constrainedBy"));
         putEdges(edges, EdgeType.DEPENDS_ON, fm.get("dependsOn"));
@@ -68,9 +68,9 @@ public final class FrontmatterParser {
         return NodeType.valueOf(value.replaceAll("(?<=[a-z])(?=[A-Z])", "_").toUpperCase(Locale.ROOT));
     }
 
-    private static void putEdges(Map<EdgeType, List<ArtifactId>> map, EdgeType type, Object raw) {
-        var ids = strings(raw).stream().map(ArtifactId::of).toList();
-        if (!ids.isEmpty()) map.put(type, ids);
+    private static void putEdges(Map<EdgeType, List<EdgeTarget>> map, EdgeType type, Object raw) {
+        var targets = strings(raw).stream().map(EdgeTarget::parse).toList();
+        if (!targets.isEmpty()) map.put(type, targets);
     }
 
     private static List<String> strings(Object raw) {
