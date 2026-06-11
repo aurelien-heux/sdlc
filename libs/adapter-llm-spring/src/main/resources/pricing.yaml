@@ -1,4 +1,4 @@
-# USD per 1M tokens. This is CONFIG, not code: update when providers change prices,
+# USD per 1M tokens. This is CONFIG, not code: update when providers change prices. Editing requires a rebuild; mount as an external file in later phases.
 # add entries for the models you actually run. Unknown models cost 0 and log a warning.
 claude-sonnet-4-6:   { input: 3.00, output: 15.00 }
 claude-haiku-4-5:    { input: 1.00, output: 5.00 }

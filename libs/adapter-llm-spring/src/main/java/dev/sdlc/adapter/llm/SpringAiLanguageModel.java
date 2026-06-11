@@ -16,6 +16,8 @@ import java.util.List;
  * Real per-model cost is looked up from pricing.yaml via ModelPricing (NFR-COST).
  */
 public final class SpringAiLanguageModel implements LanguageModelPort {
+    private static final java.util.Set<String> WARNED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     private final ChatModel chatModel;
     private final ModelPricing pricing;
 
@@ -41,7 +43,7 @@ public final class SpringAiLanguageModel implements LanguageModelPort {
         long out = usage.getCompletionTokens() == null ? 0 : usage.getCompletionTokens();
         String model = response.getMetadata().getModel();
         double cost = pricing.costUsd(model == null ? "" : model, in, out);
-        if (model != null && !pricing.knows(model))
+        if (model != null && !pricing.knows(model) && WARNED.add(model))
             System.err.println("[pricing] unknown model '" + model + "' — cost recorded as $0");
         return new ModelResponse(response.getResult().getOutput().getText(), List.of(),
                 new Usage(in, out, cost));
