@@ -104,11 +104,17 @@ class EndToEndTest {
                 && r.subject().equals(specId));
         assertThat(graph.staleNodes()).extracting(n -> n.id().value()).contains(specId.value());
 
-        // --- 4. propagation also works on a freshly rebuilt projection (edges round-trip) ---
+        // --- 4. restart-safe staleness: rebuilt projection flags spec stale WITHOUT applyChange ---
+        // Step 3 wrote a new sha for REQ-0001 to disk; the spec's frontmatter still pins the OLD
+        // sha. On rebuild, ProjectionBuilder detects pin != upstream current sha at startup time
+        // and flags the spec NEEDS_REVALIDATION immediately — that is the entire point of
+        // FR-TRACE-2 (restart-safe staleness via pinned refs). No applyChange call is needed.
         var rebuiltAfterChange = new InMemoryTraceabilityGraph();
-        new ProjectionBuilder(new FrontmatterParser()).rebuild(workspace, rebuiltAfterChange);
-        var events2 = rebuiltAfterChange.applyChange(ArtifactId.of("REQ-0001"),
-                FrontmatterParser.gitBlobSha("different content"));
-        assertThat(events2).extracting(e -> e.subject().value()).contains(specId.value());
+        var rebuildEvents = new java.util.ArrayList<RevalidationRequested>();
+        new ProjectionBuilder(new FrontmatterParser()).rebuild(workspace, rebuiltAfterChange, rebuildEvents::add);
+        // The spec is already stale at rebuild time — no applyChange needed
+        assertThat(rebuiltAfterChange.get(specId).orElseThrow().status())
+                .isEqualTo(NodeStatus.NEEDS_REVALIDATION);
+        assertThat(rebuildEvents).extracting(e -> e.subject().value()).contains(specId.value());
     }
 }

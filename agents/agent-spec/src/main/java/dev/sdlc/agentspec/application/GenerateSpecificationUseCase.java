@@ -93,6 +93,7 @@ public final class GenerateSpecificationUseCase {
 
     private String renderFile(SpecificationDraft draft, Provenance prov, TestabilityReport report,
                               List<Node> sources) {
+        // pins == draft.derivesFrom() by construction; sources carry the shas
         String derives = sources.stream()
                 .map(src -> yq(src.id().value() + "@" + src.blobSha()))
                 .collect(Collectors.joining(", ", "[", "]"));
