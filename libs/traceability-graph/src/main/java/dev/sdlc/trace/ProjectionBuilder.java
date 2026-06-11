@@ -30,8 +30,12 @@ public final class ProjectionBuilder {
     public void rebuild(Path artifactRoot, TraceabilityGraphPort graph,
                         Consumer<RevalidationRequested> onStale) {
         List<ArtifactFile> artifacts;
+        // workspace/inbox holds RAW stakeholder documents (FR-INT-1) — agent inputs, not
+        // artifacts; they carry no frontmatter and must not be projected (nor crash rebuild).
+        Path inbox = artifactRoot.resolve("inbox");
         try (Stream<Path> files = Files.walk(artifactRoot)) {
             artifacts = files.filter(p -> p.toString().endsWith(".md"))
+                    .filter(p -> !p.startsWith(inbox))
                     .map(p -> {
                         try { return parser.parse(Files.readString(p), artifactRoot.relativize(p).toString()); }
                         catch (IOException e) { throw new UncheckedIOException(e); }

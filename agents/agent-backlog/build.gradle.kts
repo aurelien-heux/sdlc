@@ -17,6 +17,13 @@ dependencies {
     implementation(libs.jakarta.json)
     runtimeOnly(libs.parsson)
     testImplementation(testFixtures(project(":libs:agent-core")))
+    // Test-scope cross-agent dependencies are for the closed-loop E2E ONLY: the loop test
+    // drives intent→spec→design→backlog inside one JVM. Production code never crosses
+    // agent boundaries — these must stay testImplementation.
+    testImplementation(project(":agents:agent-intent"))
+    testImplementation(project(":agents:agent-spec"))
+    testImplementation(project(":agents:agent-design"))
+    testImplementation(project(":libs:governance"))
     implementation(libs.spring.boot.starter)
 }
 

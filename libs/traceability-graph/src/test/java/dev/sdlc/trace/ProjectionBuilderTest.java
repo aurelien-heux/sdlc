@@ -241,6 +241,40 @@ class ProjectionBuilderTest {
     }
 
     /**
+     * workspace/inbox holds raw stakeholder documents (FR-INT-1): no frontmatter, not
+     * artifacts. Rebuild must skip them (both pending and processed) instead of crashing —
+     * every bootstrap rebuilds from the workspace root BEFORE the inbox is ingested.
+     */
+    @Test
+    void rebuildSkipsRawInboxDocuments(@TempDir Path dir) throws Exception {
+        Files.createDirectories(dir.resolve("inbox/processed"));
+        Files.writeString(dir.resolve("inbox/payment-notes.md"), "raw meeting notes, no frontmatter");
+        Files.writeString(dir.resolve("inbox/processed/old-notes.md"), "already ingested notes");
+        Files.writeString(dir.resolve("REQ-0012.md"), """
+                ---
+                id: REQ-0012
+                type: Requirement
+                title: Regional tax
+                status: APPROVED
+                provenance:
+                  sourceRefs: [ticket:PROJ-88]
+                  generatedBy: human
+                  confidence: 1.0
+                  assumptions: []
+                  humanApproved: true
+                  approvedBy: a.dupont
+                ---
+                body
+                """);
+
+        var graph = new InMemoryTraceabilityGraph();
+        new ProjectionBuilder(new FrontmatterParser()).rebuild(dir, graph); // must not throw
+
+        assertThat(graph.get(ArtifactId.of("REQ-0012"))).isPresent();
+        assertThat(graph.staleNodes()).isEmpty();
+    }
+
+    /**
      * Transitive staleness at rebuild (Defect 2): if REQ-0012 was edited offline and
      * SPEC-0007 pins a stale sha, then STORY-0042 (which derivesFrom SPEC-0007's CURRENT
      * sha) must also be flagged NEEDS_REVALIDATION after rebuild — the spec §5 invariant
