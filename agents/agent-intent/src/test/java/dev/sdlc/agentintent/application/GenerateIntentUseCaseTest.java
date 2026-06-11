@@ -82,6 +82,34 @@ class GenerateIntentUseCaseTest {
     }
 
     @Test
+    void danglingTitleLinksSurfaceAsAssumptionsAndFallbacksStillApply() {
+        var json = """
+                {"goals": [{"title": "Only goal", "description": "d",
+                            "sourceQuotes": ["q"], "assumptions": []}],
+                 "requirements": [{"title": "R", "description": "d", "kind": "functional",
+                            "moscow": "MUST", "goalTitle": "No such goal",
+                            "sourceQuotes": ["q"], "assumptions": []}],
+                 "useCases": [{"title": "U", "actor": "A", "mainFlow": ["step"], "altFlows": [],
+                            "requirementTitle": "Also missing",
+                            "sourceQuotes": ["q"], "assumptions": []}]}
+                """;
+        var model = new FakeLanguageModel().respondWith(FakeLanguageModel.finalText(json));
+
+        var ids = useCase(model).generate("inbox/notes.md", SOURCE);
+
+        var reqId = ids.stream().filter(i -> i.prefix().equals("REQ")).findFirst().orElseThrow();
+        var ucId = ids.stream().filter(i -> i.prefix().equals("UC")).findFirst().orElseThrow();
+        var goalId = ids.stream().filter(i -> i.prefix().equals("GOAL")).findFirst().orElseThrow();
+        // dangling goalTitle: no edge, but surfaced as assumption
+        assertThat(graph.get(reqId).orElseThrow().provenance().assumptions())
+                .anyMatch(a -> a.contains("No such goal"));
+        // dangling requirementTitle: surfaced AND single-goal fallback applied
+        assertThat(graph.get(ucId).orElseThrow().provenance().assumptions())
+                .anyMatch(a -> a.contains("Also missing"));
+        assertThat(graph.downstreamOf(goalId)).extracting(dev.sdlc.trace.Node::id).contains(ucId);
+    }
+
+    @Test
     void nfrKindGetsNfrPrefix() {
         var nfrJson = """
                 {"goals": [], "useCases": [],

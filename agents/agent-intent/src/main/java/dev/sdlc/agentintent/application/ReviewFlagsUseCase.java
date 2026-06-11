@@ -2,6 +2,7 @@ package dev.sdlc.agentintent.application;
 
 import dev.sdlc.agent.AgentLoop;
 import dev.sdlc.agent.Guardrails;
+import dev.sdlc.agent.port.ArtifactRepositoryPort;
 import dev.sdlc.agent.port.LanguageModelPort;
 import dev.sdlc.agent.port.RunTracePort;
 import dev.sdlc.agent.port.ToolRegistry;
@@ -35,13 +36,15 @@ public final class ReviewFlagsUseCase {
 
     private final LanguageModelPort model;
     private final TraceabilityGraphPort graph;
+    private final ArtifactRepositoryPort repo;
     private final RunTracePort trace;
     private final Guardrails guardrails;
     private final String agentVersion;
 
     public ReviewFlagsUseCase(LanguageModelPort model, TraceabilityGraphPort graph,
-                              RunTracePort trace, Guardrails guardrails, String agentVersion) {
-        this.model = model; this.graph = graph; this.trace = trace;
+                              ArtifactRepositoryPort repo, RunTracePort trace,
+                              Guardrails guardrails, String agentVersion) {
+        this.model = model; this.graph = graph; this.repo = repo; this.trace = trace;
         this.guardrails = guardrails; this.agentVersion = agentVersion;
     }
 
@@ -54,15 +57,43 @@ public final class ReviewFlagsUseCase {
         if (existing.isEmpty()) return List.of();
 
         String task = "NEW:\n" + describe(newNodes) + "\nEXISTING:\n" + describe(existing);
-        var loop = new AgentLoop(model, new ToolRegistry(List.of()), trace, guardrails);
-        var result = loop.run("intent-review-" + UUID.randomUUID(), SYSTEM_PROMPT, task);
-
-        var flags = parse(result.finalText());
+        List<Flag> flags;
+        try {
+            var loop = new AgentLoop(model, new ToolRegistry(List.of()), trace, guardrails);
+            var result = loop.run("intent-review-" + UUID.randomUUID(), SYSTEM_PROMPT, task);
+            flags = parse(result.finalText());
+        } catch (RuntimeException e) {
+            // the review is advisory (FR-INT-2): a failed pass must never poison
+            // the already-written artifacts — degrade, don't die.
+            System.err.println("[intent-review] advisory pass failed: " + e.getMessage());
+            return List.of();
+        }
         var now = Instant.now();
         for (var f : flags)
             graph.link(Edge.current(f.relation(), f.newId(), f.existingId(),
                     graph.get(f.existingId()).map(Node::blobSha).orElse("unknown"), agentVersion, now));
+        surfaceInFiles(flags, now);
         return flags;
+    }
+
+    /** Spec §9 step 4: the human gate reviews FILES, so flags must be visible there,
+     *  not only as graph edges. Rewriting the from-node is safe: its own derivesFrom
+     *  edges pin upstream shas, so nothing propagates. */
+    private void surfaceInFiles(List<Flag> flags, Instant now) {
+        var byNewId = flags.stream().collect(Collectors.groupingBy(Flag::newId,
+                java.util.LinkedHashMap::new, Collectors.toList()));
+        for (var entry : byNewId.entrySet()) {
+            var node = graph.get(entry.getKey()).orElseThrow();
+            var content = repo.read(node.repoPath()).orElse("");
+            var section = new StringBuilder(content);
+            if (!content.isEmpty() && !content.endsWith("\n")) section.append('\n');
+            section.append("\n## Review flags\n\n");
+            for (var f : entry.getValue())
+                section.append("- ").append(f.relation()).append(' ')
+                        .append(f.existingId()).append(": ").append(f.reason()).append('\n');
+            var newSha = repo.write(node.repoPath(), section.toString());
+            graph.upsert(node.withContentChange(newSha, now));
+        }
     }
 
     private List<Node> allIntentNodes() {

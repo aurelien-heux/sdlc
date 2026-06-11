@@ -81,29 +81,43 @@ public final class GenerateIntentUseCase {
         for (var r : draft.requirements()) {
             var id = nextId(r.kind().equals("nfr") ? "NFR" : "REQ");
             var upstream = r.goalTitle() == null ? null : goalIds.get(r.goalTitle());
+            var assumptions = r.assumptions();
+            if (r.goalTitle() != null && upstream == null)
+                assumptions = withUnlinked(assumptions, "goalTitle", r.goalTitle());
             writeArtifact(id, r.kind().equals("nfr") ? NodeType.NFR : NodeType.REQUIREMENT,
                     r.title(), "requirements",
                     body(r.description(), "MoSCoW: " + r.moscow(), null),
-                    sourceRef, clarifications, r.sourceQuotes(), r.assumptions(),
+                    sourceRef, clarifications, r.sourceQuotes(), assumptions,
                     upstream == null ? List.of() : List.of(upstream), now);
             reqIds.put(r.title(), id);
             produced.add(id);
         }
         for (var u : draft.useCases()) {
             var id = nextId("UC");
-            var upstream = u.requirementTitle() != null ? reqIds.get(u.requirementTitle())
-                    : (goalIds.size() == 1 ? goalIds.values().iterator().next() : null);
+            var upstream = u.requirementTitle() == null ? null : reqIds.get(u.requirementTitle());
+            var assumptions = u.assumptions();
+            if (u.requirementTitle() != null && upstream == null)
+                assumptions = withUnlinked(assumptions, "requirementTitle", u.requirementTitle());
+            if (upstream == null && goalIds.size() == 1)
+                upstream = goalIds.values().iterator().next(); // single-goal fallback
             var flow = "### Main flow\n" + u.mainFlow().stream()
                     .map(s -> "1. " + s).collect(Collectors.joining("\n"))
                     + (u.altFlows().isEmpty() ? "" : "\n\n### Alternate flows\n" + u.altFlows().stream()
                     .map(s -> "- " + s).collect(Collectors.joining("\n")));
             writeArtifact(id, NodeType.USE_CASE, u.title(), "usecases",
                     body("Actor: " + u.actor(), null, flow),
-                    sourceRef, clarifications, u.sourceQuotes(), u.assumptions(),
+                    sourceRef, clarifications, u.sourceQuotes(), assumptions,
                     upstream == null ? List.of() : List.of(upstream), now);
             produced.add(id);
         }
         return produced;
+    }
+
+    /** A dangling title link must never be silently swallowed: surface it as an assumption. */
+    private static List<String> withUnlinked(List<String> assumptions, String field, String title) {
+        var out = new ArrayList<>(assumptions);
+        out.add("unlinked: " + field + " '" + title + "' not found in this batch");
+        return out;
     }
 
     private static String body(String description, String extra, String flow) {

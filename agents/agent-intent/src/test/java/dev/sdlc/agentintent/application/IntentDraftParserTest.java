@@ -35,6 +35,17 @@ class IntentDraftParserTest {
     }
 
     @Test
+    void explicitJsonNullLinkTitlesAreTreatedAsAbsent() {
+        var draft = new IntentDraftParser().parse("""
+                {"goals": [], "useCases": [],
+                 "requirements": [{"title": "R", "description": "d", "kind": "functional",
+                            "moscow": "MUST", "goalTitle": null,
+                            "sourceQuotes": ["q"], "assumptions": []}]}
+                """);
+        assertThat(draft.requirements().getFirst().goalTitle()).isNull();
+    }
+
+    @Test
     void rejectsProseAndUngroundedItems() {
         assertThatThrownBy(() -> new IntentDraftParser().parse("sorry, no json"))
                 .isInstanceOf(IllegalArgumentException.class);
