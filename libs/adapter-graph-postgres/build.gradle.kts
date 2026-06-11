@@ -1,0 +1,10 @@
+plugins { id("sdlc.java-conventions") }
+dependencies {
+    api(project(":libs:traceability-graph"))
+    implementation(libs.jakarta.json)       // provenance jsonb (de)serialization
+    runtimeOnly(libs.parsson)
+    implementation(libs.postgresql)
+    testImplementation(testFixtures(project(":libs:traceability-graph")))
+    testImplementation(libs.testcontainers.postgresql)
+    testImplementation(libs.testcontainers.junit)
+}
