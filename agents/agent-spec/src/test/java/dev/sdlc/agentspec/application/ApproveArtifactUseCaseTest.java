@@ -17,9 +17,9 @@ class ApproveArtifactUseCaseTest {
             type: Specification
             title: 'Checkout tax'
             status: PROPOSED
-            derivesFrom: [REQ-0012]
+            derivesFrom: ['REQ-0012@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa']
             provenance:
-              sourceRefs: ['REQ-0012@r1']
+              sourceRefs: ['REQ-0012@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa']
               generatedBy: 'agent-spec@v1'
               confidence: 0.80
               assumptions: []
@@ -47,7 +47,7 @@ class ApproveArtifactUseCaseTest {
     @BeforeEach
     void proposedSpec() {
         files.put("specs/SPEC-0001.md", FILE);
-        var prov = Provenance.generated(List.of("REQ-0012@r1"), "agent-spec@v1", 0.8, List.of());
+        var prov = Provenance.generated(List.of("REQ-0012@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), "agent-spec@v1", 0.8, List.of());
         graph.upsert(new Node(specId, NodeType.SPECIFICATION, "Checkout tax", "specs/SPEC-0001.md",
                 FrontmatterParser.gitBlobSha(FILE), NodeStatus.PROPOSED, 1, prov, T0, T0));
     }
@@ -129,5 +129,12 @@ class ApproveArtifactUseCaseTest {
                 .review(specId))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("specs/SPEC-0001.md");
+    }
+
+    @Test
+    void approvalPreservesPinnedRefs() {
+        new ApproveArtifactUseCase(graph, repo, decide(true, null), () -> T0).review(specId);
+        assertThat(files.get("specs/SPEC-0001.md"))
+                .contains("derivesFrom: ['REQ-0012@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa']");
     }
 }

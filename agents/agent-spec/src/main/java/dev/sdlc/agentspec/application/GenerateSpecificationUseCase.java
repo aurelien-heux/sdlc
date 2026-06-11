@@ -63,7 +63,7 @@ public final class GenerateSpecificationUseCase {
                 agentVersion, 0.8, parsed.assumptions());
 
         String repoPath = "specs/" + specId.value() + ".md";
-        String content = renderFile(draft, provenance, parsed.report());
+        String content = renderFile(draft, provenance, parsed.report(), sources);
         String blobSha = repo.write(repoPath, content);
 
         var now = Instant.now();
@@ -91,8 +91,10 @@ public final class GenerateSpecificationUseCase {
         return "'" + s.replaceAll("[\\r\\n]+", " ").replace("'", "''") + "'";
     }
 
-    private String renderFile(SpecificationDraft draft, Provenance prov, TestabilityReport report) {
-        String derives = draft.derivesFrom().stream().map(ArtifactId::value)
+    private String renderFile(SpecificationDraft draft, Provenance prov, TestabilityReport report,
+                              List<Node> sources) {
+        String derives = sources.stream()
+                .map(src -> yq(src.id().value() + "@" + src.blobSha()))
                 .collect(Collectors.joining(", ", "[", "]"));
         String refs = prov.sourceRefs().stream().map(GenerateSpecificationUseCase::yq)
                 .collect(Collectors.joining(", ", "[", "]"));

@@ -14,6 +14,7 @@ import static org.assertj.core.api.Assertions.*;
 
 class GenerateSpecificationUseCaseTest {
     static final Instant T0 = Instant.parse("2026-06-10T10:00:00Z");
+    static final String R1_SHA = "a".repeat(40);
 
     InMemoryTraceabilityGraph graph = new InMemoryTraceabilityGraph();
     List<SdlcEvent> published = new ArrayList<>();
@@ -36,7 +37,7 @@ class GenerateSpecificationUseCaseTest {
         var prov = Provenance.generated(List.of("ticket:PROJ-88"), "human", 1.0, List.of())
                 .approve("a.dupont", T0);
         return new Node(ArtifactId.of("REQ-0012"), NodeType.REQUIREMENT, "Regional tax",
-                "requirements/REQ-0012.md", "r1", NodeStatus.APPROVED, 1, prov, T0, T0);
+                "requirements/REQ-0012.md", R1_SHA, NodeStatus.APPROVED, 1, prov, T0, T0);
     }
 
     String modelJson = """
@@ -63,7 +64,7 @@ class GenerateSpecificationUseCaseTest {
         var spec = graph.get(specId).orElseThrow();
         assertThat(spec.status()).isEqualTo(NodeStatus.PROPOSED);
         assertThat(spec.provenance().humanApproved()).isFalse();
-        assertThat(spec.provenance().sourceRefs()).contains("REQ-0012@r1");
+        assertThat(spec.provenance().sourceRefs()).contains("REQ-0012@" + R1_SHA);
         // file written with frontmatter + Gherkin
         var content = files.get(spec.repoPath());
         assertThat(content).startsWith("---").contains("Scenario: FR VAT");
@@ -109,7 +110,7 @@ class GenerateSpecificationUseCaseTest {
         assertThat(reparsed.node().provenance().assumptions())
                 .containsExactly("uses \"latest\" rates");
         assertThat(reparsed.edgeTargets().get(EdgeType.DERIVES_FROM))
-                .extracting(EdgeTarget::id).containsExactly(ArtifactId.of("REQ-0012"));
+                .containsExactly(new EdgeTarget(ArtifactId.of("REQ-0012"), R1_SHA));
     }
 
     @Test
