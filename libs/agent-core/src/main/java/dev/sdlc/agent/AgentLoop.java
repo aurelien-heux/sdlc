@@ -22,6 +22,11 @@ public final class AgentLoop {
     }
 
     public AgentRunResult run(String runId, String systemPrompt, String task) {
+        return ScopedValue.where(RunContext.SCOPE, new RunContext(runId))
+                .call(() -> doRun(runId, systemPrompt, task));
+    }
+
+    private AgentRunResult doRun(String runId, String systemPrompt, String task) {
         var messages = new ArrayList<Message>();
         messages.add(new Message(Role.USER, task));
         long tokens = 0; double cost = 0;

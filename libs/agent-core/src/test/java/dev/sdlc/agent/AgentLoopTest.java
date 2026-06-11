@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 import static org.assertj.core.api.Assertions.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 class AgentLoopTest {
     Tool echo = new Tool() {
@@ -117,5 +118,28 @@ class AgentLoopTest {
         assertThatThrownBy(() -> loop.run("run-1", "system", "task"))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThat(trace.outcome).isEqualTo("aborted:tool-error");
+    }
+
+    @Test
+    void runContextIsScopedDuringTheRun() {
+        var seen = new AtomicReference<String>();
+        Tool peek = new Tool() {
+            public String name() { return "peek"; }
+            public String description() { return "peek"; }
+            public Map<String, String> parameterSchema() { return Map.of(); }
+            public String execute(Map<String, Object> args) {
+                seen.set(RunContext.current().map(RunContext::runId).orElse(null));
+                return "ok";
+            }
+        };
+        var model = new FakeLanguageModel().respondWith(
+                FakeLanguageModel.toolCall("peek", Map.of()),
+                FakeLanguageModel.finalText("done"));
+        var loop = new AgentLoop(model, new ToolRegistry(List.of(peek)), noTrace, new Guardrails(5, 1.0));
+
+        loop.run("run-ctx-1", "system", "task");
+
+        assertThat(seen.get()).isEqualTo("run-ctx-1");
+        assertThat(RunContext.current()).isEmpty(); // not leaked outside the run
     }
 }
