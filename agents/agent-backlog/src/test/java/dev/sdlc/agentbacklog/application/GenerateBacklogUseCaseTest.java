@@ -77,6 +77,41 @@ class GenerateBacklogUseCaseTest {
     }
 
     @Test
+    void writtenFilesRoundTripWithDependenciesAndLevels() {
+        graph.upsert(approved("SPEC-0001", NodeType.SPECIFICATION, SPEC_SHA));
+        files.put("SPEC-0001.md", "---\nid: SPEC-0001\n---\nGherkin");
+        var model = new FakeLanguageModel().respondWith(FakeLanguageModel.finalText(MODEL_JSON));
+        var backlog = new FileBacklogAdapter(repo);
+
+        var ids = new GenerateBacklogUseCase(model, graph, repo, backlog, published::add, noTrace,
+                new BacklogDraftParser(), "agent-backlog@v1", new Guardrails(5, 1.0))
+                .generate(ArtifactId.of("SPEC-0001"), List.of());
+
+        // restart simulation: a FRESH graph re-projected from the written files only
+        var rebuilt = new InMemoryTraceabilityGraph();
+        for (var id : ids) {
+            var node = graph.get(id).orElseThrow();
+            var parsed = new FrontmatterParser().parse(files.get(node.repoPath()), node.repoPath());
+            rebuilt.upsert(parsed.node());
+            parsed.edgeTargets().forEach((type, targets) -> targets.forEach(t ->
+                    rebuilt.link(Edge.current(type, parsed.node().id(), t.id(),
+                            t.pinnedSha() == null ? "unknown" : t.pinnedSha(), "test",
+                            Instant.parse("2026-06-11T10:00:00Z")))));
+        }
+        var epicId = ids.getFirst();
+        var storyId = ids.get(1);
+        // the dependency survived the round-trip
+        assertThat(rebuilt.downstreamOf(epicId, EdgeType.DEPENDS_ON))
+                .extracting(Node::id).containsExactly(storyId);
+        // level/estimate are recoverable (frontmatter — parser ignores unknown keys but the
+        // raw text must sit ABOVE the closing fence)
+        var storyContent = files.get(graph.get(storyId).orElseThrow().repoPath());
+        var fenceEnd = storyContent.indexOf("\n---", 3);
+        assertThat(storyContent.substring(0, fenceEnd))
+                .contains("level: story").contains("estimate: M").contains("acceptanceHook: 'FR VAT'");
+    }
+
+    @Test
     void refusesUnapprovedInputs() {
         var prov = Provenance.generated(List.of("x"), "h", 0.8, List.of());
         graph.upsert(new Node(ArtifactId.of("SPEC-0001"), NodeType.SPECIFICATION, "t", "p",

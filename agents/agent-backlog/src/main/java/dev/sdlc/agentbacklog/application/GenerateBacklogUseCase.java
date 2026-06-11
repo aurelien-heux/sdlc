@@ -67,22 +67,27 @@ public final class GenerateBacklogUseCase {
         upstream.add(spec);
         upstream.addAll(designs);
 
+        // Pass 1: allocate all ids so dependsOn cross-refs can be resolved before any writes
         Map<String, ArtifactId> byTitle = new LinkedHashMap<>();
         var produced = new ArrayList<ArtifactId>();
         for (var item : draft.items()) {
             var id = nextId(switch (item.level()) {
                 case "epic" -> "EPIC"; case "task" -> "TASK"; default -> "STORY";
             });
-            writeItem(id, item, upstream, now);
             byTitle.put(item.title(), id);
             produced.add(id);
         }
-        // dependency edges after all ids exist (titles validated by BacklogDraft)
+
+        // Pass 2: write every item with full dependency knowledge
+        for (var item : draft.items())
+            writeItem(byTitle.get(item.title()), item, byTitle, upstream, now);
+
+        // dependency edges after all writes (unchanged semantics)
         for (var item : draft.items())
             for (var dep : item.dependsOn())
                 graph.link(Edge.current(EdgeType.DEPENDS_ON,
                         byTitle.get(item.title()), byTitle.get(dep),
-                        graph.get(byTitle.get(dep)).map(Node::blobSha).orElse("unknown"),
+                        graph.get(byTitle.get(dep)).orElseThrow().blobSha(),
                         agentVersion, now));
         return produced;
     }
@@ -94,21 +99,33 @@ public final class GenerateBacklogUseCase {
         return node;
     }
 
-    private void writeItem(ArtifactId id, BacklogItemDraft item, List<Node> upstream, Instant now) {
+    private void writeItem(ArtifactId id, BacklogItemDraft item, Map<String, ArtifactId> byTitle,
+                           List<Node> upstream, Instant now) {
         var refs = upstream.stream().map(n -> n.id().value() + "@" + n.blobSha()).toList();
-        var provenance = Provenance.generated(refs, agentVersion, 0.7,
-                item.acceptanceHook() == null ? List.of("epic-level grouping, no single scenario")
-                        : List.of());
+        // epics span many scenarios; story/task with no hook are legal (sourceRefs grounds provenance)
+        List<String> assumptions = "epic".equals(item.level())
+                ? List.of("epic-level grouping, no single scenario") : List.of();
+        var provenance = Provenance.generated(refs, agentVersion, 0.7, assumptions);
         var derives = refs.stream().map(GenerateBacklogUseCase::yq)
                 .collect(Collectors.joining(", ", "[", "]"));
-        var hook = item.acceptanceHook() == null ? ""
-                : "\nServes scenario: " + item.acceptanceHook() + "\n";
+        // dependsOn is written UNPINNED — deliberate: ProjectionBuilder treats null pins as
+        // never-stale, matching live applyChange semantics which never stales DEPENDS_ON;
+        // pinning would create rebuild-only stale flags that never occur live.
+        var dependsOnYaml = item.dependsOn().isEmpty() ? "[]"
+                : item.dependsOn().stream()
+                        .map(title -> yq(byTitle.get(title).value()))
+                        .collect(Collectors.joining(", ", "[", "]"));
+        var hookYaml = item.acceptanceHook() == null ? ""
+                : "\nacceptanceHook: " + yq(item.acceptanceHook());
         String content = String.format(Locale.ROOT, """
                 ---
                 id: %s
                 type: BacklogItem
                 title: %s
                 status: PROPOSED
+                level: %s
+                estimate: %s%s
+                dependsOn: %s
                 derivesFrom: %s
                 provenance:
                   sourceRefs: %s
@@ -117,19 +134,20 @@ public final class GenerateBacklogUseCase {
                   assumptions: %s
                   humanApproved: false
                 ---
-                level: %s
-                estimate: %s
 
-                %s%s""", id.value(), yq(item.title()), derives,
+                %s""", id.value(), yq(item.title()), item.level(), item.estimate(), hookYaml,
+                dependsOnYaml, derives,
                 refs.stream().map(GenerateBacklogUseCase::yq).collect(Collectors.joining(", ", "[", "]")),
                 yq(provenance.generatedBy()), provenance.confidence(),
                 provenance.assumptions().stream().map(GenerateBacklogUseCase::yq)
                         .collect(Collectors.joining(", ", "[", "]")),
-                item.level(), item.estimate(), item.description(), hook);
-        backlog.upsert(id, item.level(), item.title(), content, item.estimate());
+                item.description());
+        // The file adapter persists `body` verbatim at the returned path; the caller owns
+        // content rendering and sha computation.
+        var repoPath = backlog.upsert(id, item.level(), item.title(), content, item.estimate());
         var sha = FrontmatterParser.gitBlobSha(content);
         graph.upsert(new Node(id, NodeType.BACKLOG_ITEM, item.title(),
-                "backlog/" + id.value() + ".md", sha, NodeStatus.PROPOSED, 1, provenance, now, now));
+                repoPath, sha, NodeStatus.PROPOSED, 1, provenance, now, now));
         for (var up : upstream)
             graph.link(Edge.current(EdgeType.DERIVES_FROM, id, up.id(), up.blobSha(),
                     agentVersion, now));

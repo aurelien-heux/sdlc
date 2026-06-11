@@ -77,6 +77,10 @@ public final class GenerateDesignUseCase {
     }
 
     private String existingDesignSummaries() {
+        // Phase 1B: the port has no listing by type; enumerate via the id probe used for allocation.
+        // This relies on ids being allocated densely from 1 (true: nextId always takes the first gap).
+        // It breaks if an id is ever hard-deleted — acceptable Phase 1B (nothing deletes nodes);
+        // a listByType port method is the clean Phase 2 fix.
         var out = new StringBuilder();
         for (var prefix : List.of("DES", "ADR", "API"))
             for (int i = 1; i < 10_000; i++) {
