@@ -1,0 +1,28 @@
+plugins {
+    id("sdlc.java-conventions")
+    alias(libs.plugins.spring.boot)   // version comes from the catalog (springBoot)
+}
+dependencies {
+    implementation(project(":libs:domain-shared"))
+    implementation(project(":libs:agent-core"))
+    implementation(project(":libs:traceability-graph"))
+    implementation(project(":libs:adapter-common"))
+    implementation(project(":libs:governance"))
+    implementation(project(":libs:adapter-llm-spring"))
+    implementation(project(":libs:adapter-git"))
+    implementation(project(":libs:adapter-graph-postgres"))
+    implementation(project(":libs:adapter-otel"))
+    implementation(libs.postgresql)
+    implementation(libs.otel.autoconfigure)
+    implementation(libs.jakarta.json)
+    runtimeOnly(libs.parsson)
+    testImplementation(testFixtures(project(":libs:agent-core")))
+    implementation(libs.spring.boot.starter)
+    // test-only: round-trip property against the real spec generator's body format
+    testImplementation(project(":agents:agent-spec"))
+}
+
+// the demo prompts for clarifications/approval on stdin; without this, bootRun sees EOF and auto-rejects
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+    standardInput = System.`in`
+}
