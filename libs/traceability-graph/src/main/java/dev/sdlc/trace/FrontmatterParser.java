@@ -54,6 +54,7 @@ public final class FrontmatterParser {
         putEdges(edges, EdgeType.DERIVES_FROM, fm.get("derivesFrom"));
         putEdges(edges, EdgeType.CONSTRAINS, fm.get("constrainedBy"));
         putEdges(edges, EdgeType.DEPENDS_ON, fm.get("dependsOn"));
+        putEdges(edges, EdgeType.VERIFIES, fm.get("verifies"));
         return new ArtifactFile(node, edges, body, java.util.Collections.unmodifiableMap(fm));
     }
 

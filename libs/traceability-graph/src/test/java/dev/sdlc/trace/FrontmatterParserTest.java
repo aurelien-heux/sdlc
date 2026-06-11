@@ -76,6 +76,7 @@ class FrontmatterParserTest {
                 title: t
                 status: DRAFT
                 derivesFrom: ['REQ-0012@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', UC-0003]
+                verifies: [SPEC-0001]
                 provenance:
                   sourceRefs: [x]
                   generatedBy: h
@@ -88,6 +89,9 @@ class FrontmatterParserTest {
         assertThat(artifact.edgeTargets().get(EdgeType.DERIVES_FROM)).containsExactly(
                 new EdgeTarget(ArtifactId.of("REQ-0012"), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
                 new EdgeTarget(ArtifactId.of("UC-0003"), null));
+        // bare ref = unpinned (VERIFIES is unpinned by design — see GenerateTestsUseCase)
+        assertThat(artifact.edgeTargets().get(EdgeType.VERIFIES)).containsExactly(
+                new EdgeTarget(ArtifactId.of("SPEC-0001"), null));
     }
 
     @Test

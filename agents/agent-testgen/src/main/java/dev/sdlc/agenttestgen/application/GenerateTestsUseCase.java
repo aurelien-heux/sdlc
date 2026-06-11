@@ -13,6 +13,7 @@ import dev.sdlc.trace.Node;
 import dev.sdlc.trace.TraceabilityGraphPort;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -63,19 +64,33 @@ public final class GenerateTestsUseCase {
         // title from the FILE's frontmatter — canonical source of truth (brief §12.1)
         var specTitle = specFile.node().title();
         var featureText = new FeatureRenderer().render(new FeatureDraft(specTitle, scenarios));
+        // hook-matched stories are computed BEFORE writing so the feature's frontmatter
+        // can carry every VERIFIES target it owns (frontmatter is canonical — brief §12.1)
+        var verifiedStories = storiesVerifiedBy(scenarios);
+        var featureVerifies = new ArrayList<ArtifactId>();
+        featureVerifies.add(spec.id());
+        verifiedStories.forEach(s -> featureVerifies.add(s.id()));
         var featureId = write(nextId("TEST"), specTitle + " — feature", "feature",
-                featureText, 0.90, List.of(), spec, now);
-        linkStoriesVerifiedBy(featureId, scenarios, now);
+                featureText, 0.90, List.of(), featureVerifies, spec, now);
+        // VERIFIES duality: graph.link gives the LIVE graph its edges immediately;
+        // the `verifies:` frontmatter written above is what restores them at restart.
+        // A rebuild reproduces exactly these edges from the file.
+        for (var story : verifiedStories)
+            graph.link(Edge.current(EdgeType.VERIFIES, featureId, story.id(),
+                    story.blobSha(), agentVersion, now));
 
-        // skeleton half: LLM-generated binding glue, grounded in design summaries (FR-TEST-3)
-        String task = featureText + "\n\n# Design context\n" + designContext()
+        // skeleton half: LLM-generated binding glue, grounded in the full spec body
+        // (which carries `## Constraints` when present — spec §4.4) plus design summaries
+        // (FR-TEST-3)
+        String task = featureText + "\n\n# Specification\n" + specFile.body()
+                + "\n# Design context\n" + designContext()
                 + "\n# Language\n" + language;
         var loop = new AgentLoop(model, new ToolRegistry(List.of()), trace, guardrails);
         var draft = parser.parse(loop.run("testgen-" + UUID.randomUUID(), SYSTEM_PROMPT, task)
                 .finalText());
         var skeletonBody = "```" + draft.language() + "\n" + draft.content() + "\n```";
         var stepsId = write(nextId("TEST"), specTitle + " — step skeletons", "steps",
-                skeletonBody, 0.70, List.of(SKELETON_ASSUMPTION), spec, now);
+                skeletonBody, 0.70, List.of(SKELETON_ASSUMPTION), List.of(spec.id()), spec, now);
 
         return List.of(featureId, stepsId);
     }
@@ -89,11 +104,12 @@ public final class GenerateTestsUseCase {
         return out.isEmpty() ? "(none yet)" : out.toString();
     }
 
-    /** FR-TEST-2: feature VERIFIES every story whose acceptanceHook names one of its scenarios. */
-    private void linkStoriesVerifiedBy(ArtifactId featureId, List<ScenarioSpec> scenarios,
-                                       Instant now) {
+    /** FR-TEST-2: the feature VERIFIES every story whose acceptanceHook names one of its
+     *  scenarios. Pure query — linking and frontmatter happen at the call site. */
+    private List<Node> storiesVerifiedBy(List<ScenarioSpec> scenarios) {
         Set<String> scenarioNames = scenarios.stream().map(ScenarioSpec::name)
                 .collect(Collectors.toSet());
+        var verified = new ArrayList<Node>();
         for (var story : graph.listByType(NodeType.BACKLOG_ITEM)) {
             // proposal-branch cases: story node may exist while its file isn't readable from
             // this workspace — skip silently rather than fail the whole generation
@@ -103,17 +119,21 @@ public final class GenerateTestsUseCase {
             Object hook = new FrontmatterParser().parse(content.get(), story.repoPath())
                     .rawFrontmatter().get("acceptanceHook");
             if (hook != null && scenarioNames.contains(hook.toString()))
-                graph.link(Edge.current(EdgeType.VERIFIES, featureId, story.id(),
-                        story.blobSha(), agentVersion, now));
+                verified.add(story);
         }
+        return verified;
     }
 
     private ArtifactId write(ArtifactId id, String title, String kind, String bodyText,
-                             double confidence, List<String> assumptions, Node spec, Instant now) {
+                             double confidence, List<String> assumptions,
+                             List<ArtifactId> verifies, Node spec, Instant now) {
         var provenance = Provenance.generated(
                 List.of(spec.id().value() + "@" + spec.blobSha()),
                 agentVersion, confidence, assumptions);
         String repoPath = "tests/" + id.value() + "." + kind + ".md";
+        // verifies refs are UNPINNED bare ids by design: ProjectionBuilder stales any
+        // drifted pin at rebuild, while live propagation never stales VERIFIES edges —
+        // a pinned ref would phantom-flag these artifacts after every restart.
         String content = String.format(Locale.ROOT, """
                 ---
                 id: %s
@@ -121,6 +141,7 @@ public final class GenerateTestsUseCase {
                 title: %s
                 status: PROPOSED
                 derivesFrom: [%s]
+                verifies: %s
                 provenance:
                   sourceRefs: [%s]
                   generatedBy: %s
@@ -131,6 +152,8 @@ public final class GenerateTestsUseCase {
                 %s
                 """, id.value(), yq(title),
                 yq(spec.id().value() + "@" + spec.blobSha()),
+                verifies.stream().map(v -> yq(v.value()))
+                        .collect(Collectors.joining(", ", "[", "]")),
                 yq(spec.id().value() + "@" + spec.blobSha()),
                 yq(provenance.generatedBy()), provenance.confidence(),
                 assumptions.stream().map(GenerateTestsUseCase::yq)
@@ -141,6 +164,7 @@ public final class GenerateTestsUseCase {
                 provenance, now, now));
         graph.link(Edge.current(EdgeType.DERIVES_FROM, id, spec.id(), spec.blobSha(),
                 agentVersion, now));
+        // live half of the VERIFIES duality (frontmatter `verifies:` is the restart half)
         graph.link(Edge.current(EdgeType.VERIFIES, id, spec.id(), spec.blobSha(),
                 agentVersion, now));
         events.publish(new ArtifactProposed(id));

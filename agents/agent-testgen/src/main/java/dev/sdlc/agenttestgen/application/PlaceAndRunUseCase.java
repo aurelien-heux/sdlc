@@ -84,14 +84,20 @@ public final class PlaceAndRunUseCase {
         return new Skeleton(ext, String.join("\n", lines.subList(1, lines.size() - 1)) + "\n");
     }
 
-    /** Replaces any previous lastRun/lastRunAt stamp, then inserts the new one after status:. */
+    /** Replaces any previous lastRun/lastRunAt stamp, then inserts the new one after status:.
+     *  Operates on the FRONTMATTER region only — a body that happens to contain a column-0
+     *  `lastRun:`/`status:` line (e.g. inside a code fence) must never be touched. */
     private void stamp(ArtifactId id, RunResult result) {
         var node = graph.get(id).orElseThrow();
         var content = workspace.read(node.repoPath()).orElseThrow();
-        var cleaned = content.replaceAll("(?m)^lastRun(At)?: .*\\n", "");
+        int end = content.indexOf("\n---", 3);
+        if (end < 0) throw new IllegalStateException("unterminated frontmatter: " + node.repoPath());
+        var head = content.substring(0, end + 1);   // includes the trailing \n before ---
+        var rest = content.substring(end + 1);      // "---..." closing fence + body, untouched
+        var cleaned = head.replaceAll("(?m)^lastRun(At)?: .*\\n", "");
         var stamped = cleaned.replaceFirst("(?m)^(status: .*)$",
                 "$1\nlastRun: " + (result.passed() ? "passed" : "failed")
-                + "\nlastRunAt: '" + clock.get() + "'");
+                + "\nlastRunAt: '" + clock.get() + "'") + rest;
         var sha = workspace.write(node.repoPath(), stamped);
         // metadata change, no propagation — same rule as approvals (status untouched,
         // dependents are not flagged; only the node's sha is synced to the file)

@@ -39,6 +39,9 @@ public final class ProcessTestRunner implements TestRunnerPort {
             });
             if (!process.waitFor(10, TimeUnit.MINUTES)) {
                 process.destroyForcibly();
+                // let the drainer flush what the dying process already wrote (bounded —
+                // the kill closes the pipe, but don't hang forever if it doesn't)
+                drainer.join(java.time.Duration.ofSeconds(2));
                 return new RunResult(false,
                         tail(output.toString(StandardCharsets.UTF_8) + "\n[timed out after 10 minutes]"));
             }

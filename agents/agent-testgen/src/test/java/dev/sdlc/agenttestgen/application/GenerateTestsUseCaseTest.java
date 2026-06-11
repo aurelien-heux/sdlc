@@ -51,6 +51,10 @@ class GenerateTestsUseCaseTest {
             Given a FR cart
             When checkout
             Then VAT added
+
+            ## Constraints
+
+            - rounding follows jurisdiction rules
             """.formatted("a".repeat(40), "a".repeat(40));
 
     static final String STORY_FILE = """
@@ -119,9 +123,35 @@ class GenerateTestsUseCaseTest {
         // events + status
         assertThat(published).contains(new ArtifactProposed(featureId), new ArtifactProposed(stepsId));
         assertThat(graph.get(featureId).orElseThrow().status()).isEqualTo(NodeStatus.PROPOSED);
-        // the model prompt contained the feature text and design context marker
+        // the model prompt contained the feature text AND the spec body's constraints
+        // (spec §4.4: the full spec body — `## Constraints` included — grounds the skeleton)
         assertThat(model.requests.getFirst().messages().getFirst().content())
-                .contains("Scenario: FR VAT");
+                .contains("Scenario: FR VAT").contains("rounding follows");
+    }
+
+    @Test
+    void verifiesEdgesSurviveRestartFromFrontmatterAlone() {
+        var model = new FakeLanguageModel().respondWith(FakeLanguageModel.finalText(SKELETON_JSON));
+
+        var ids = useCase(model).generate(ArtifactId.of("SPEC-0001"));
+
+        // restart simulation: a FRESH graph re-projected from the written files ONLY
+        // (includes the pre-existing SPEC and STORY files — full workspace, like startup)
+        var rebuilt = new InMemoryTraceabilityGraph();
+        files.forEach((path, content) -> {
+            var parsed = new FrontmatterParser().parse(content, path);
+            rebuilt.upsert(parsed.node());
+            parsed.edgeTargets().forEach((type, targets) -> targets.forEach(t ->
+                    rebuilt.link(Edge.current(type, parsed.node().id(), t.id(),
+                            t.pinnedSha() == null ? "unknown" : t.pinnedSha(), "test", T0))));
+        });
+        var featureId = ids.getFirst();
+        var stepsId = ids.get(1);
+        // VERIFIES edges are canonical frontmatter — they must survive the restart
+        assertThat(rebuilt.downstreamOf(ArtifactId.of("SPEC-0001"), EdgeType.VERIFIES))
+                .extracting(Node::id).containsExactlyInAnyOrder(featureId, stepsId);
+        assertThat(rebuilt.downstreamOf(ArtifactId.of("STORY-0001"), EdgeType.VERIFIES))
+                .extracting(Node::id).containsExactly(featureId);
     }
 
     @Test

@@ -123,4 +123,35 @@ class PlaceAndRunUseCaseTest {
                     .orElseThrow().blobSha()).isEqualTo(FrontmatterParser.gitBlobSha(rewritten));
         }
     }
+
+    @Test
+    void stampTouchesOnlyTheFrontmatterRegion(@TempDir Path workspaceDir,
+                                              @TempDir Path target) throws Exception {
+        // skeleton whose BODY carries a column-0 `lastRun: x` line — must survive uncorrupted
+        var trickySteps = STEPS_FILE.replace(
+                "```java\n",
+                "```java\nlastRun: x\n");
+        var workspace = new FileArtifactRepository(workspaceDir);
+        var featureSha = workspace.write("tests/TEST-0001.feature.md", FEATURE_FILE);
+        var stepsSha = workspace.write("tests/TEST-0002.steps.md", trickySteps);
+        graph.upsert(proposed("TEST-0001", "tests/TEST-0001.feature.md", featureSha));
+        graph.upsert(proposed("TEST-0002", "tests/TEST-0002.steps.md", stepsSha));
+
+        // two runs: clean + stamp must operate on the frontmatter head only, both times
+        useCase(workspace, target, 0).placeAndRun(ArtifactId.of("TEST-0001"), ArtifactId.of("TEST-0002"));
+        useCase(workspace, target, 1).placeAndRun(ArtifactId.of("TEST-0001"), ArtifactId.of("TEST-0002"));
+
+        var rewritten = workspace.read("tests/TEST-0002.steps.md").orElseThrow();
+        var parsed = new FrontmatterParser().parse(rewritten, "tests/TEST-0002.steps.md");
+        // the body line survived both clean/stamp cycles
+        assertThat(parsed.body()).contains("lastRun: x")
+                .contains("public class CheckoutTaxSteps");
+        // the frontmatter head carries exactly one fresh stamp
+        var head = rewritten.substring(0, rewritten.indexOf("\n---", 3));
+        assertThat(head).containsOnlyOnce("lastRun: failed").containsOnlyOnce("lastRunAt:")
+                .doesNotContain("lastRun: passed").doesNotContain("lastRun: x");
+        // and the placed payload still contains the tricky line, fence stripped
+        assertThat(Files.readString(target.resolve("src/test/java/generated/TEST-0002.java")))
+                .contains("lastRun: x").contains("public class CheckoutTaxSteps");
+    }
 }

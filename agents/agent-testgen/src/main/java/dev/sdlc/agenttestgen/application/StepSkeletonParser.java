@@ -11,8 +11,13 @@ public final class StepSkeletonParser {
 
     public StepSkeletonDraft parse(String modelOutput) {
         String json = modelOutput.strip();
-        if (json.startsWith("```"))
-            json = json.substring(json.indexOf('\n') + 1, json.lastIndexOf("```")).strip();
+        if (json.startsWith("```")) {
+            int open = json.indexOf('\n');
+            int close = json.lastIndexOf("```");
+            if (close <= open)
+                throw new IllegalArgumentException("unterminated fence in model output");
+            json = json.substring(open + 1, close).strip();
+        }
         JsonObject root;
         try (var reader = Json.createReader(new StringReader(json))) {
             root = reader.readObject();

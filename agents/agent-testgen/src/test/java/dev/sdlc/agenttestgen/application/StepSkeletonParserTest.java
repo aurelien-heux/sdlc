@@ -15,6 +15,14 @@ class StepSkeletonParserTest {
     }
 
     @Test
+    void rejectsUnterminatedFenceInsteadOfCrashing() {
+        assertThatThrownBy(() -> new StepSkeletonParser().parse(
+                "```json\n{\"language\": \"java\", \"content\": \"x\"}"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("unterminated fence");
+    }
+
+    @Test
     void rejectsProseAndUnknownLanguage() {
         assertThatThrownBy(() -> new StepSkeletonParser().parse("here you go!"))
                 .isInstanceOf(IllegalArgumentException.class);
