@@ -100,4 +100,41 @@ public abstract class TraceabilityGraphContract {
         assertThat(graph.get(ArtifactId.of("REQ-0012")).orElseThrow().version())
                 .isEqualTo(versionAfterFirst);
     }
+
+    @Test
+    void impactTraversalStopsAtDanglingIntermediateNodes() {
+        // BB's node is missing (edge exists via direct link()); traversal must not pass through it
+        graph.link(Edge.current(EdgeType.DERIVES_FROM, ArtifactId.of("BB-0001"),
+                ArtifactId.of("GOAL-0001"), "g1", "test", T0));
+        graph.upsert(node("CC-0001", NodeType.REQUIREMENT, NodeStatus.DRAFT, "c1"));
+        graph.link(Edge.current(EdgeType.DERIVES_FROM, ArtifactId.of("CC-0001"),
+                ArtifactId.of("BB-0001"), "unknown", "test", T0));
+
+        assertThat(graph.impactOf(ArtifactId.of("GOAL-0001")))
+                .extracting(n -> n.id().value())
+                .containsExactlyInAnyOrder("REQ-0012", "SPEC-0007", "STORY-0042"); // not CC-0001
+    }
+
+    @Test
+    void impactTerminatesOnCycles() {
+        graph.upsert(node("FF-0001", NodeType.REQUIREMENT, NodeStatus.DRAFT, "f1"));
+        graph.upsert(node("GG-0001", NodeType.REQUIREMENT, NodeStatus.DRAFT, "g1"));
+        graph.link(Edge.current(EdgeType.DERIVES_FROM, ArtifactId.of("FF-0001"), ArtifactId.of("GG-0001"), "g1", "test", T0));
+        graph.link(Edge.current(EdgeType.DERIVES_FROM, ArtifactId.of("GG-0001"), ArtifactId.of("FF-0001"), "f1", "test", T0));
+
+        assertThat(graph.impactOf(ArtifactId.of("FF-0001")))
+                .extracting(n -> n.id().value())
+                .containsExactlyInAnyOrder("FF-0001", "GG-0001"); // terminates; changed node included when on a cycle
+    }
+
+    @Test
+    void createdAtFollowsTheUpsertedNode() {
+        var original = graph.get(ArtifactId.of("REQ-0012")).orElseThrow();
+        var later = new Node(original.id(), original.type(), original.title(), original.repoPath(),
+                original.blobSha(), original.status(), original.version(), original.provenance(),
+                T0.plusSeconds(3600), T0.plusSeconds(3600));
+        graph.upsert(later);
+        assertThat(graph.get(ArtifactId.of("REQ-0012")).orElseThrow().createdAt())
+                .isEqualTo(T0.plusSeconds(3600)); // upsert replaces the whole node (in-memory reference semantics)
+    }
 }

@@ -60,7 +60,8 @@ public final class PostgresTraceabilityGraph implements TraceabilityGraphPort {
                 ON CONFLICT (id) DO UPDATE SET type=EXCLUDED.type, title=EXCLUDED.title,
                   repo_path=EXCLUDED.repo_path, blob_sha=EXCLUDED.blob_sha,
                   status=EXCLUDED.status, version=EXCLUDED.version,
-                  provenance=EXCLUDED.provenance, updated_at=EXCLUDED.updated_at""")) {
+                  provenance=EXCLUDED.provenance, created_at=EXCLUDED.created_at,
+                  updated_at=EXCLUDED.updated_at""")) {
             ps.setString(1, n.id().value());
             ps.setString(2, n.type().name());
             ps.setString(3, n.title());
@@ -129,7 +130,9 @@ public final class PostgresTraceabilityGraph implements TraceabilityGraphPort {
                   SELECT e.from_id FROM edges e
                     WHERE e.to_id = ? AND e.type IN ('DERIVES_FROM','SATISFIES')
                   UNION
-                  SELECT e.from_id FROM edges e JOIN impact i ON e.to_id = i.from_id
+                  SELECT e.from_id FROM edges e
+                    JOIN impact i ON e.to_id = i.from_id
+                    JOIN nodes pass ON pass.id = i.from_id
                     WHERE e.type IN ('DERIVES_FROM','SATISFIES')
                 )
                 SELECT n.* FROM nodes n JOIN impact i ON n.id = i.from_id""")) {
@@ -154,7 +157,12 @@ public final class PostgresTraceabilityGraph implements TraceabilityGraphPort {
                 link(c, edge.revalidated(upstream.blobSha(), validatedBy, Instant.now()));
                 clearFlagIfNoStaleDeps(c, edge.from());
                 c.commit();
-            } catch (Exception e) { c.rollback(); throw e; }
+            } catch (Exception e) {
+                try { c.rollback(); } catch (SQLException rb) { e.addSuppressed(rb); }
+                throw e;
+            } finally {
+                c.setAutoCommit(true);
+            }
         } catch (SQLException e) { throw new IllegalStateException(e); }
     }
 
@@ -208,7 +216,12 @@ public final class PostgresTraceabilityGraph implements TraceabilityGraphPort {
                 }
                 c.commit();
                 return events;
-            } catch (Exception e) { c.rollback(); throw e; }
+            } catch (Exception e) {
+                try { c.rollback(); } catch (SQLException rb) { e.addSuppressed(rb); }
+                throw e;
+            } finally {
+                c.setAutoCommit(true);
+            }
         } catch (SQLException e) { throw new IllegalStateException(e); }
     }
 
@@ -220,7 +233,9 @@ public final class PostgresTraceabilityGraph implements TraceabilityGraphPort {
                   SELECT e.from_id FROM edges e
                     WHERE e.to_id = ? AND e.type IN ('DERIVES_FROM','SATISFIES')
                   UNION
-                  SELECT e.from_id FROM edges e JOIN impact i ON e.to_id = i.from_id
+                  SELECT e.from_id FROM edges e
+                    JOIN impact i ON e.to_id = i.from_id
+                    JOIN nodes pass ON pass.id = i.from_id
                     WHERE e.type IN ('DERIVES_FROM','SATISFIES')
                 )
                 SELECT n.* FROM nodes n JOIN impact i ON n.id = i.from_id""")) {
