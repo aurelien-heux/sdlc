@@ -113,6 +113,33 @@ class FrontmatterParserTest {
     }
 
     @Test
+    void rawFrontmatterExposesPerTypeExtras() {
+        var artifact = new FrontmatterParser().parse("""
+                ---
+                id: STORY-0001
+                type: BacklogItem
+                title: 'Regional rate lookup'
+                status: PROPOSED
+                level: story
+                estimate: M
+                acceptanceHook: 'FR VAT'
+                derivesFrom: []
+                provenance:
+                  sourceRefs: [x]
+                  generatedBy: h
+                  confidence: 0.7
+                  assumptions: []
+                  humanApproved: false
+                ---
+                body
+                """, "backlog/STORY-0001.md");
+        assertThat(artifact.rawFrontmatter().get("acceptanceHook")).isEqualTo("FR VAT");
+        assertThat(artifact.rawFrontmatter().get("level")).isEqualTo("story");
+        assertThatThrownBy(() -> artifact.rawFrontmatter().put("x", "y"))
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
     void malformedFrontmatterFailuresNameTheFile() {
         // missing required keys
         assertThatThrownBy(() -> new FrontmatterParser().parse("---\ntitle: only\n---\nbody", "bad/missing-keys.md"))
