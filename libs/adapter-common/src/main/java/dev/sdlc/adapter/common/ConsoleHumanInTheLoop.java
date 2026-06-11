@@ -1,4 +1,4 @@
-package dev.sdlc.agentspec.adapters.outbound;
+package dev.sdlc.adapter.common;
 
 import dev.sdlc.agent.port.HumanInTheLoopPort;
 import dev.sdlc.domain.ArtifactId;

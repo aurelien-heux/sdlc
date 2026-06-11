@@ -1,4 +1,4 @@
-package dev.sdlc.agentspec.adapters.outbound;
+package dev.sdlc.adapter.common;
 
 import dev.sdlc.agent.port.EventPublisherPort;
 import dev.sdlc.domain.event.SdlcEvent;
