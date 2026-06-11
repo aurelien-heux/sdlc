@@ -11,13 +11,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Phase 0 adapter: text-only bridge to Spring AI (the spec agent needs no tools yet —
+ * Spring AI adapter: text-only bridge (the spec agent needs no tools yet —
  * its ToolRegistry is empty). Native tool-calling support lands when an agent needs it.
+ * Real per-model cost is looked up from pricing.yaml via ModelPricing (NFR-COST).
  */
 public final class SpringAiLanguageModel implements LanguageModelPort {
     private final ChatModel chatModel;
+    private final ModelPricing pricing;
 
-    public SpringAiLanguageModel(ChatModel chatModel) { this.chatModel = chatModel; }
+    public SpringAiLanguageModel(ChatModel chatModel) { this(chatModel, ModelPricing.fromBundledYaml()); }
+
+    public SpringAiLanguageModel(ChatModel chatModel, ModelPricing pricing) {
+        this.chatModel = chatModel; this.pricing = pricing;
+    }
 
     @Override public ModelResponse complete(ModelRequest request) {
         // fully-qualified element type: the port's nested Message record shadows Spring AI's
@@ -33,8 +39,11 @@ public final class SpringAiLanguageModel implements LanguageModelPort {
         var usage = response.getMetadata().getUsage();
         long in = usage.getPromptTokens() == null ? 0 : usage.getPromptTokens();
         long out = usage.getCompletionTokens() == null ? 0 : usage.getCompletionTokens();
-        // cost stays 0.0 in Phase 0: pricing lookup is a Phase 1 concern (NFR-COST tracks tokens now)
+        String model = response.getMetadata().getModel();
+        double cost = pricing.costUsd(model == null ? "" : model, in, out);
+        if (model != null && !pricing.knows(model))
+            System.err.println("[pricing] unknown model '" + model + "' — cost recorded as $0");
         return new ModelResponse(response.getResult().getOutput().getText(), List.of(),
-                new Usage(in, out, 0.0));
+                new Usage(in, out, cost));
     }
 }

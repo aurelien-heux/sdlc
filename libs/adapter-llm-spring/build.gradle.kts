@@ -9,6 +9,7 @@ dependencies {
     api(project(":libs:agent-core"))
     api(libs.spring.ai.anthropic)
     api(libs.spring.ai.openai)
+    implementation(libs.snakeyaml)
     constraints {
         // anthropic-java pulls httpclient5:5.3.1; Boot 4.1's HttpComponents request factory
         // (used by the OpenAI RestClient) needs 5.4+ (TlsSocketStrategy). Align with Boot's BOM.
