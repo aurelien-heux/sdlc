@@ -7,7 +7,7 @@ import dev.sdlc.adapter.common.ConsoleHumanInTheLoop;
 import dev.sdlc.adapter.common.FileArtifactRepository;
 import dev.sdlc.adapter.common.InProcessEventPublisher;
 import dev.sdlc.adapter.common.LoggingRunTrace;
-import dev.sdlc.agentspec.adapters.outbound.SpringAiLanguageModel;
+import dev.sdlc.adapter.llm.SpringAiLanguageModel;
 import dev.sdlc.agentspec.application.ApproveArtifactUseCase;
 import dev.sdlc.agentspec.application.ArtifactChangedHandler;
 import dev.sdlc.agentspec.application.GenerateSpecificationUseCase;

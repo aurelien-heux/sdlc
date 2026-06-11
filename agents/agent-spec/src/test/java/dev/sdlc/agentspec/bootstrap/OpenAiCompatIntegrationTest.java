@@ -2,7 +2,7 @@ package dev.sdlc.agentspec.bootstrap;
 
 import com.sun.net.httpserver.HttpServer;
 import dev.sdlc.agent.port.LanguageModelPort;
-import dev.sdlc.agentspec.adapters.outbound.SpringAiLanguageModel;
+import dev.sdlc.adapter.llm.SpringAiLanguageModel;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.model.ChatModel;

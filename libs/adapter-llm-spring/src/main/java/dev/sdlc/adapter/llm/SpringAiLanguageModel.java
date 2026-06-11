@@ -1,4 +1,4 @@
-package dev.sdlc.agentspec.adapters.outbound;
+package dev.sdlc.adapter.llm;
 
 import dev.sdlc.agent.port.LanguageModelPort;
 import org.springframework.ai.chat.messages.AssistantMessage;
