@@ -1,4 +1,4 @@
-package dev.sdlc.agentspec;
+package dev.sdlc.agentbacklog;
 
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;

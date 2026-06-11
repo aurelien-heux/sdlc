@@ -75,6 +75,9 @@ public final class ApproveArtifactUseCase {
     private void restampDependents(ArtifactId approvedId, Set<ArtifactId> visited) {
         var approved = graph.get(approvedId).orElseThrow();
         for (var dependent : graph.downstreamOf(approvedId, EdgeType.DERIVES_FROM, EdgeType.SATISFIES)) {
+            // visited-by-NODE: in a diamond (D derives from B and C) D is re-stamped only via the
+            // first-reached parent; unreachable today (downstream artifacts are generated only after
+            // upstream approval) — revisit if multi-parent batches arrive (Phase 2)
             if (!visited.add(dependent.id())) continue;
             var content = repo.read(dependent.repoPath()).orElse(null);
             if (content == null) continue; // proposal-branch-only dependents: next scan re-projects

@@ -16,6 +16,7 @@ dependencies {
     implementation(libs.otel.autoconfigure)
     implementation(libs.jakarta.json)
     runtimeOnly(libs.parsson)
+    testImplementation(libs.archunit)
     testImplementation(testFixtures(project(":libs:agent-core")))
     // Test-scope cross-agent dependencies are for the closed-loop E2E ONLY: the loop test
     // drives intent→spec→design→backlog inside one JVM. Production code never crosses

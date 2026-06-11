@@ -16,7 +16,6 @@ dependencies {
     implementation(libs.otel.autoconfigure)
     implementation(libs.jakarta.json)
     runtimeOnly(libs.parsson)
-    testImplementation(libs.archunit)
     testImplementation(testFixtures(project(":libs:agent-core")))
     implementation(libs.spring.boot.starter)
     testImplementation(libs.spring.boot.starter.test)
