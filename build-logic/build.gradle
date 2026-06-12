@@ -1,2 +1,2 @@
-plugins { `kotlin-dsl` }
+plugins { id 'groovy-gradle-plugin' }
 repositories { mavenCentral(); gradlePluginPortal() }

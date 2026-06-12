@@ -1,0 +1,11 @@
+plugins {
+    id 'sdlc.java-conventions'
+    id 'java-test-fixtures'
+}
+dependencies {
+    api project(':libs:domain-shared')
+    implementation libs.snakeyaml // used by the parser
+    testFixturesImplementation platform(libs.junit.bom)
+    testFixturesImplementation libs.junit.jupiter
+    testFixturesImplementation libs.assertj
+}

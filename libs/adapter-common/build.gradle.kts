@@ -1,5 +1,0 @@
-plugins { id("sdlc.java-conventions") }
-dependencies {
-    api(project(":libs:agent-core"))           // implements its ports
-    implementation(project(":libs:traceability-graph")) // gitBlobSha
-}
