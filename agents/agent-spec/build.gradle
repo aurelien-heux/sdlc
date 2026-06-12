@@ -24,4 +24,8 @@ dependencies {
 // the demo prompts for approval on stdin; without this, bootRun sees EOF and auto-rejects
 tasks.named('bootRun') {
     standardInput = System.in
+    // bootRun executes in the module dir; resolve the default ./workspace against the
+    // repo root instead, and forward -Dworkspace from the gradle invocation to the app JVM.
+    workingDir = rootDir
+    systemProperty 'workspace', System.getProperty('workspace', 'workspace')
 }
