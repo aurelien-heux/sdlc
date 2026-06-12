@@ -61,8 +61,9 @@ class OpenAiCompatIntegrationTest {
 
     @DynamicPropertySource
     static void stubEndpoint(DynamicPropertyRegistry registry) {
+        // base-url carries /v1 (the documented convention); the profile yaml appends /chat/completions
         registry.add("spring.ai.openai.base-url",
-                () -> "http://127.0.0.1:" + STUB.getAddress().getPort());
+                () -> "http://127.0.0.1:" + STUB.getAddress().getPort() + "/v1");
     }
 
     @AfterAll

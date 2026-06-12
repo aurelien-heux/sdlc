@@ -107,14 +107,17 @@ OpenAI-compatible endpoint, activate the `openai` profile:
 
 ```bash
 export SPRING_PROFILES_ACTIVE=openai
-export OPENAI_BASE_URL=https://api.openai.com   # default if unset
+export OPENAI_BASE_URL=https://api.openai.com/v1        # default if unset; include /v1
 export OPENAI_API_KEY=sk-...
-export OPENAI_MODEL=gpt-5.2                     # default if unset
+export OPENAI_MODEL=gpt-5.2                             # default if unset
+export OPENAI_COMPLETIONS_PATH=/chat/completions        # default if unset; appended to the base URL
 ./gradlew :agents:agent-intent:bootRun
 ```
 
 Works with Ollama, vLLM, LM Studio, LiteLLM, or any server that speaks the OpenAI
-chat-completions API. See the Profiles table below for all switches.
+chat-completions API. The request URL is `OPENAI_BASE_URL` + `OPENAI_COMPLETIONS_PATH`,
+so keep the `/v1` (or your gateway's prefix) in the base URL. See the Profiles table
+below for all switches.
 
 ## Run the spec agent standalone
 
@@ -133,7 +136,7 @@ Model and options live in `agents/agent-spec/src/main/resources/application.yaml
 | Profile | Effect | Env vars |
 |---|---|---|
 | (none) | in-memory graph, plain files, console trace | ANTHROPIC_API_KEY |
-| `openai` | OpenAI-compatible LLM endpoint | OPENAI_BASE_URL, OPENAI_API_KEY, OPENAI_MODEL |
+| `openai` | OpenAI-compatible LLM endpoint | OPENAI_BASE_URL, OPENAI_API_KEY, OPENAI_MODEL, OPENAI_COMPLETIONS_PATH |
 | `postgres` | durable graph projection | SDLC_DB_URL, SDLC_DB_USER, SDLC_DB_PASSWORD |
 | `git-approval` | workspace is a git repo; proposals on branches, approval merges | — |
 | `otel` | OTLP span export per agent run/step | OTEL_EXPORTER_OTLP_ENDPOINT |

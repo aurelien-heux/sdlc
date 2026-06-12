@@ -27,8 +27,10 @@ database (the graph is re-projected from them at every start).
 No Docker? Use `./gradlew assemble` instead of `build` — the run itself doesn't need it.
 
 > **OpenAI-compatible endpoint instead?** Prefix every command below with
-> `SPRING_PROFILES_ACTIVE=openai` and set `OPENAI_BASE_URL`, `OPENAI_API_KEY`,
-> `OPENAI_MODEL` (Ollama example: `OPENAI_BASE_URL=http://localhost:11434`).
+> `SPRING_PROFILES_ACTIVE=openai` and set `OPENAI_BASE_URL` (including `/v1`),
+> `OPENAI_API_KEY`, `OPENAI_MODEL` (Ollama example:
+> `OPENAI_BASE_URL=http://localhost:11434/v1`). Gateways with a non-standard
+> route can override `OPENAI_COMPLETIONS_PATH` (default `/chat/completions`).
 
 Heads-up on cost: each agent run is one or two model calls with hard guardrails
 (intent: 12 iterations / $1.00 ceiling; the others: 5 / $1.00; spec: 8 / $0.50).
