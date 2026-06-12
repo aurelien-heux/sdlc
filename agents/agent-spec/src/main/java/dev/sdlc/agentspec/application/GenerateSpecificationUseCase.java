@@ -20,7 +20,8 @@ public final class GenerateSpecificationUseCase {
             You are a specification agent. From the requirement and use-case documents \
             provided, produce ONE testable specification. Respond with ONLY a JSON object: \
             {"title", "criteria":[{"scenario","steps"}], "constraints":[], "assumptions":[], \
-            "untestable":[{"id","reason"}]}. Steps are Gherkin (Given/When/Then). \
+            "untestable":[{"id","reason"}]}. "steps" is ONE string of newline-separated \
+            Gherkin lines (Given/When/Then), not an array. \
             Ground every criterion in the provided documents; put anything you had to assume \
             into "assumptions"; never invent requirements.""";
 

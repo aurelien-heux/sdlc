@@ -26,7 +26,7 @@ public final class SpecDraftParser {
         try {
             var criteria = root.getJsonArray("criteria").stream()
                     .map(v -> v.asJsonObject())
-                    .map(o -> new AcceptanceCriterion(o.getString("scenario"), o.getString("steps")))
+                    .map(o -> new AcceptanceCriterion(o.getString("scenario"), stringOrJoinedArray(o.get("steps"))))
                     .toList();
             var constraints = root.getJsonArray("constraints").stream()
                     .map(v -> ((jakarta.json.JsonString) v).getString()).toList();
@@ -41,5 +41,14 @@ public final class SpecDraftParser {
         } catch (NullPointerException | ClassCastException e) {
             throw new IllegalArgumentException("model JSON missing or mistyped field: " + e.getMessage(), e);
         }
+    }
+
+    // some models emit Gherkin steps as an array of lines rather than one newline-joined string
+    private static String stringOrJoinedArray(jakarta.json.JsonValue v) {
+        if (v instanceof jakarta.json.JsonArray a)
+            return a.stream()
+                    .map(e -> ((jakarta.json.JsonString) e).getString())
+                    .collect(java.util.stream.Collectors.joining("\n"));
+        return ((jakarta.json.JsonString) v).getString();
     }
 }

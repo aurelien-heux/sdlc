@@ -32,6 +32,20 @@ class SpecDraftParserTest {
     }
 
     @Test
+    void toleratesStepsAsArrayOfStrings() {
+        // some models emit Gherkin steps as a JSON array rather than one newline-joined string
+        String json = """
+                {"title": "Checkout applies regional tax",
+                 "criteria": [{"scenario": "FR VAT", "steps": ["Given a FR cart", "When checkout", "Then VAT added"]}],
+                 "constraints": [], "assumptions": [], "untestable": []}
+                """;
+        var parsed = new SpecDraftParser().parse(json, ArtifactId.of("SPEC-0001"),
+                List.of(ArtifactId.of("REQ-0012")));
+        assertThat(parsed.draft().criteria().getFirst().steps())
+            .isEqualTo("Given a FR cart\nWhen checkout\nThen VAT added");
+    }
+
+    @Test
     void rejectsUnparseableOutput() {
         assertThatThrownBy(() -> new SpecDraftParser().parse("sorry, here is prose",
                 ArtifactId.of("SPEC-0001"), List.of(ArtifactId.of("REQ-0012"))))
